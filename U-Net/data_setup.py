@@ -1,4 +1,6 @@
-
+"""
+Containing various classes and functions for creating and loading dataloaders for segmentation datasets.
+"""
 import torch
 import torchvision
 from torchvision import transforms
@@ -9,6 +11,10 @@ from typing import Tuple
 from torch.utils.data import random_split
 
 class ISBIDataset(Dataset):
+
+    """
+    A torch.utils.data.Dataset subclass for creating train, test, and validation datasets from the ISBI data root directory.
+    """
     def __init__(self,
                  data_dir: str,
                  transforms: torchvision.transforms = None):
@@ -35,7 +41,7 @@ class ISBIDataset(Dataset):
         img = self.load_images(index= index)
         mask = self.load_masks(index= index)
         if self.transforms:
-            return self.transforms(img), self.mask_crop(self.transforms(mask))
+            return self.transforms(img), self.mask_crop(self.transforms(mask)/255)
         else:
             return img, mask
 
@@ -49,6 +55,33 @@ def create_dataloader_ISBI(train_dir: str,
                       test_val_split: float = 0.5
                       ) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.Dataset]:
 
+    """
+    Create train, test, and validation dataloaders for the ISBI data using the ISBIDataset class.
+
+    Args:
+    train_dir: A string containing the path to the training data.
+    test_dir: A string containing the path to the testing data.
+    transforms: PyTorch vision transforms to apply on each image.
+    num_workers: An integer containing the number of cpu cores to use to load data.
+    batch_size: An integer containing the batch size to use.
+    test_val_split: A float containing the ratio of test data to use for validation.
+
+    Returns:
+    train_dataloader: A dataloader object to train the model on.
+    test_dataloader: A dataloader object to test the model on.
+    val_dataloader: A dataloader object to validate the model on.
+    train_dataset: A train dataset to create train dataloaders or to visualise and explore data.
+    test_dataset: A train dataset to create test dataloaders or to visualise and explore data.
+    val_dataset: A train dataset to create val dataloaders or to visualise and explore data
+
+    Example usage:
+    train_dataloader, test_dataloader, val_dataloader, train_dataset, test_dataset, val_dataset = create_dataloader_ISBI(train_dir=data_path / "train",
+                                                                      test_dir=data_path / "test",
+                                                                      transforms=transforms,
+                                                                      batch_size=batch_size,
+                                                                      num_workers=num_workers,
+                                                                     test_val_split=0.5)
+    """
 
     train_dataset = ISBIDataset(data_dir=train_dir,
                                 transforms=transforms)
@@ -78,6 +111,11 @@ def create_dataloader_ISBI(train_dir: str,
 
 
 class CityscapeDataset(Dataset):
+
+    """
+    A torch.utils.data.Dataset subclass for creating train, test, and validation datasets from the Cityscape data root directory.
+    """
+    
     def __init__(self,
                  img_dir: str,
                  mask_dir: str,
@@ -122,6 +160,34 @@ def create_dataloaders_CS(img_dir: str,
                       num_workers: int = 4,
                       sample_size: float = 0.2):
 
+    """
+    Create train, test, and validation dataloaders for the Cityscape data using the CityscapeDataset class.
+
+    Args:
+    train_dir: A string containing the path to the training data.
+    test_dir: A string containing the path to the testing data.
+    transforms: PyTorch vision transforms to apply on each image.
+    num_workers: An integer containing the number of cpu cores to use to load data.
+    batch_size: An integer containing the batch size to use.
+    sample_size: A float containing the ratio of data to use from the full length of the data.
+
+    Returns:
+    train_dataloader: A dataloader object to train the model on.
+    test_dataloader: A dataloader object to test the model on.
+    val_dataloader: A dataloader object to validate the model on.
+    train_dataset: A train dataset to create train dataloaders or to visualise and explore data.
+    test_dataset: A train dataset to create test dataloaders or to visualise and explore data.
+    val_dataset: A train dataset to create val dataloaders or to visualise and explore data
+
+    Example usage:
+    train_dataloader, test_dataloader, val_dataloader, train_dataset, test_dataset, val_dataset = create_dataloader_ISBI(train_dir=data_path / "train",
+                                                                      test_dir=data_path / "test",
+                                                                      transforms=transforms,
+                                                                      batch_size=batch_size,
+                                                                      num_workers=num_workers,
+                                                                     sample_size=0.5)
+    """
+
     datasets = {}
     dataloaders = {}
     for item in list(img_dir.iterdir())[::-1]:
@@ -146,6 +212,11 @@ def create_dataloaders_CS(img_dir: str,
     return tuple(dataloaders.values()), tuple(datasets.values())
 
 class CarvanaDataset(Dataset):
+
+    """
+    A torch.utils.data.Dataset subclass for creating train, test, and validation datasets from the Carvana data root directory.
+    """
+    
     def __init__(self,
                  img_dir: str,
                  mask_dir: str,
@@ -201,6 +272,36 @@ def create_dataloaders_Carvana(img_dir: str,
                                train_test_val_split: Tuple[float, float, float] = (0.7, 0.2, 0.1)
                               ) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.Dataset]:
 
+        """
+    Create train, test, and validation dataloaders for the Carvana data using the CarvanaDataset class.
+
+    Args:
+    train_dir: A string containing the path to the training data.
+    test_dir: A string containing the path to the testing data.
+    transforms: PyTorch vision transforms to apply on each image.
+    num_workers: An integer containing the number of cpu cores to use to load data.
+    batch_size: An integer containing the batch size to use.
+    sample_size: A float containing the ratio of data to use from the full length of the data.
+    crop_size: A tuple of ints containing the shape after cropping the mask outputs to fit the UNet output shape.
+    
+    Returns:
+    train_dataloader: A dataloader object to train the model on.
+    test_dataloader: A dataloader object to test the model on.
+    val_dataloader: A dataloader object to validate the model on.
+    train_dataset: A train dataset to create train dataloaders or to visualise and explore data.
+    test_dataset: A train dataset to create test dataloaders or to visualise and explore data.
+    val_dataset: A train dataset to create val dataloaders or to visualise and explore data
+
+    Example usage:
+    train_dataloader, test_dataloader, val_dataloader, train_dataset, test_dataset, val_dataset = create_dataloader_ISBI(train_dir=data_path / "train",
+                                                                      test_dir=data_path / "test",
+                                                                      transforms=transforms,
+                                                                      batch_size=batch_size,
+                                                                      num_workers=num_workers,
+                                                                     sample_size=0.5
+                                                                     crop_size= (324, 836))
+    """
+    
     full_dataset = CarvanaDataset(img_dir= img_dir,
                                   mask_dir= mask_dir,
                                   transform= transform,
@@ -236,6 +337,34 @@ def choose_dataloader(data_path: str,
                      batch_size: int,
                      num_workers: int,
                      sample_size: float = 0.1):
+
+    """
+    A function to choose create_dataloader based on the data downloaded.
+
+    Args:
+    data_path: A string containing the path to the root directory of the downloaded data.
+    dataset_name: The name of the downloaded dataset (e.g "Cityscape", "ISBI", "Carvana").
+    transforms: A torchvision transform to apply to each dataset.
+    batch_size: An integer containing the batch size to use.
+    num_workers: An integer containing the number of cpu cores to use for dataloading.
+    sample_size: A float containing the ratio of data to use from the full length of the data.
+
+    Returns:
+    train_dataloader: A dataloader object to train the model on.
+    test_dataloader: A dataloader object to test the model on.
+    val_dataloader: A dataloader object to validate the model on.
+    train_dataset: A train dataset to create train dataloaders or to visualise and explore data.
+    test_dataset: A train dataset to create test dataloaders or to visualise and explore data.
+    val_dataset: A train dataset to create val dataloaders or to visualise and explore data
+
+    train_dataloader, test_dataloader, val_dataloader, train_dataset, test_dataset, val_dataset = choose_dataloader(data_path= data_path,
+                                                                                                                dataset_name=args.dataset_name,
+                                                                                                               transforms=transforms,
+                                                                                                               batch_size= args.batch_size,
+                                                                                                               num_workers = args.num_workers,
+                                                                                                               sample_size = args.sample_size)
+    
+    """
     
     if dataset_name == "ISBI":
         train_dataloader, test_dataloader, val_dataloader, train_dataset, test_dataset, val_dataset = create_dataloader_ISBI(train_dir=data_path / "train",
