@@ -102,6 +102,8 @@ class UNet(nn.Module):
                                     kernel_size=1,
                                    stride=1,
                                    padding=0)
+        self.dropout = nn.Dropout(p= 0.1, 
+                                  inplace=True)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         residual_connections = []
@@ -110,8 +112,10 @@ class UNet(nn.Module):
             residual_connections.append(x)
             x = self.maxpool(x)
 
+        x = self.dropout(x)
         x = self.bottleneck(x)
         x = self.double_downsample(x)
+        x = self.dropout(x)
         # print(x.shape)
         residual_connections = residual_connections[::-1]
         for i, up in enumerate(self.upsample):
