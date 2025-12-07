@@ -1,3 +1,19 @@
+"""
+Script to train and evaluate the UNet model on an input dataset  given some input arguments
+
+Args:
+dataset_name: A string containing the name of dataset to download (e.g 'ISBI', 'Cityscape' and 'Carvana').
+batch_size: An integer containing the number of images per batch (i.e number of images that pass through the model per train step).
+sample_size: A float input containing the ratio of data to use for training (e.g '1' = 100% of the dataset, '0.5' = 50% of the dataset).
+num_workers: An integer containing the number of cpu threads to use for dataloading (e.g '4', '12').
+use_weight_map: A boolean flag that activates/deactivates the weight map loss computation described in the official conference paper.
+load_checkpoint: A string containing the name of the checkpoint (remeber that a checkpoint is both a model and an optimizer disctionary).
+checkpoint_name: A string containing the model and optimier name by which you want to save the checkpoint.
+epochs: An integer containing the number of epochs you want the model to train for.
+
+
+"""
+
 from model import UNet
 from download_data import download_data
 from data_setup import choose_dataloader
@@ -120,7 +136,8 @@ if data_path.stem == "ISBI" or data_path.stem == "Carvana":
     evaluate_model.evaluate_model_binaryclass(model= model_0,
                                               dataloader= val_dataloader,
                                               loss_fn= loss_fn,
-                                              device= device)
+                                              device= device,
+                                             weight_map=args.use_weight_map)
 
 else:
     evaluate_model.evaluate_model_multiclass(model= model_0,

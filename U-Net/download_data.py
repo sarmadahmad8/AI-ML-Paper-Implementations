@@ -5,6 +5,20 @@ from pathlib import Path
 import os
 
 def download_data(dataset_name: str):
+
+    """
+    A function to download a segmentation dataset from three choices ("ISBI", "Cityscape", "Carvana")
+
+    Args:
+    dataset_name: A string containing the name of the dataset to download (e.g "ISBI, "Cityscape", "Carvana")
+
+    Returns:
+    data_path: A string containing the path to the root directory of the dataset containing the training and test folders.
+
+    Example usage:
+    data_path = download_data(dataset_name = "Carvana")
+    """
+    
     
     if dataset_name == "ISBI":
         data_path = Path("data/ISBI")

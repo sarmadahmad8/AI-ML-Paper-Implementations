@@ -54,6 +54,20 @@ def load_checkpoint(model: torch.nn.Module,
                     optimizer: torch.optim.Optimizer,
                     checkpoint_name: str,
                    device: torch.device = "cpu"):
+
+    """Loads a saved checkpoint to a PyTorch model.
+
+    Args:
+    model: A PyTorch model to load.
+    optimizer: A PyTorch optimizer to load.
+    checkpoint_name: The name of the checkpoint you want to load.
+    device: The device to move the model to (e.g "cuda", "cpu")
+
+    Returns:
+    model: A PyTorch model with loaded state.
+    optimizer: A PyTorch optimizer with loaded state.
+
+    """
     
     assert checkpoint_name.endswith(".pth") or checkpoint_name.endswith(".pt"), "Invalid checkpoint. Checkpoint name should end with ',pth' or '.pt'"
     
@@ -66,6 +80,17 @@ def generate_and_display_multiclass(model: torch.nn.Module,
                          dataset: torch.utils.data.dataset,
                          samples: int = 3, 
                          device: torch.device = "cpu"):
+
+    """
+    Generates and displays samples using a trained model checkpoint.
+
+    Args:
+    model: A PyTorch model.
+    dataset: A PyTorch dataset to sample from.
+    samples: An integer containing the number of samples to display
+    device: The device to perform computation on (e.g "cuda", "cpu")
+    """
+    
     model.to(device)
     model.eval()
     plt.figure(figsize=(samples*4, samples*3))
@@ -91,6 +116,17 @@ def generate_and_display_singleclass(model: torch.nn.Module,
                          dataset: torch.utils.data.dataset,
                          samples: int = 3, 
                          device: torch.device = "cpu"):
+
+    """
+    Generates and displays samples using a trained model checkpoint.
+
+    Args:
+    model: A PyTorch model.
+    dataset: A PyTorch dataset to sample from.
+    samples: An integer containing the number of samples to display
+    device: The device to perform computation on (e.g "cuda", "cpu")
+    """
+    
     model.to(device)
     model.eval()
     plt.figure(figsize=(samples*4, samples*3))

@@ -96,13 +96,13 @@ def train_step_ISBI(model: torch.nn.Module,
         y_preds_labels = torch.sigmoid(y_preds)
         binary_preds_labels = torch.round(y_preds_labels).type(torch.int32)
         if weight_map:
-            wmap = wm.compute_weight_map((y).squeeze().cpu().numpy())
-            loss = (torch.tensor(wmap).unsqueeze(dim=0).to(device) * loss_fn(y_preds.squeeze(dim=1), (y).squeeze(dim=1))).mean()
+            wmap = wm.compute_weight_map((y*255).squeeze().cpu().numpy())
+            loss = (torch.tensor(wmap).unsqueeze(dim=0).to(device) * loss_fn(y_preds.squeeze(dim=1), (y*255).squeeze(dim=1))).mean()
         else:
-            loss = loss_fn(y_preds.squeeze(), y.squeeze())
+            loss = loss_fn(y_preds.squeeze(), (y*255).squeeze())
             
         train_loss += loss.item()
-        acc = torch.sum(binary_preds_labels==y.type(torch.int32)).item()/y.numel()
+        acc = torch.sum(binary_preds_labels==(y*255).type(torch.int32)).item()/y.numel()
         train_acc += acc
         optimizer.zero_grad()
         loss.backward()
@@ -147,12 +147,12 @@ def test_step_ISBI(model: torch.nn.Module,
             test_preds = model(X)
             test_preds_labels = torch.sigmoid(test_preds)
             if weight_map:
-                wmap = wm.compute_weight_map((y).squeeze().cpu().numpy())
-                loss = (torch.tensor(wmap).unsqueeze(dim=0).to(device) * loss_fn(test_preds.squeeze(dim=1), (y).squeeze(dim=1))).mean()
+                wmap = wm.compute_weight_map((y*255).squeeze().cpu().numpy())
+                loss = (torch.tensor(wmap).unsqueeze(dim=0).to(device) * loss_fn(test_preds.squeeze(dim=1), (y*255).squeeze(dim=1))).mean()
             else:
-                loss = loss_fn(test_preds.squeeze(), y.squeeze())
+                loss = loss_fn(test_preds.squeeze(), (y*255).squeeze())
             test_preds_labels = torch.round(test_preds_labels).type(torch.int32)
-            acc = torch.sum(test_preds_labels==y.type(torch.int32)).item()/test_preds_labels.numel()
+            acc = torch.sum(test_preds_labels==(y*255).type(torch.int32)).item()/test_preds_labels.numel()
             test_loss += loss.item()
             test_acc += acc
 
