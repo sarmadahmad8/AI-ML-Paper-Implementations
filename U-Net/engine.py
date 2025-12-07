@@ -424,9 +424,9 @@ def train_step_CV(model: torch.nn.Module,
             wmap = wm.compute_weight_map((y*255).squeeze().cpu().numpy())
             loss = (torch.tensor(wmap).unsqueeze(dim=0).to(device) * loss_fn(y_preds.squeeze(dim=1), (y*255).squeeze(dim=1))).mean()
         else:
-            loss_fn(y_preds.squeeze(dim=1), (y*255).squeeze(dim=1))
+            loss = loss_fn(y_preds.squeeze(dim=1), (y*255).squeeze(dim=1))
         train_loss += loss
-        acc = torch.sum(binary_preds_labels==(y*255).type(torch.int32)).item()/y.numel()
+        acc = torch.sum(binary_preds_labels.squeeze()==(y*255).squeeze().type(torch.int32)).item()/y.numel()
         train_acc += acc
         optimizer.zero_grad()
         loss.backward()
@@ -468,16 +468,16 @@ def test_step_CV(model: torch.nn.Module,
     with torch.inference_mode():
         for batch, (X, y) in enumerate(dataloader):
             X, y = X.to(device), y.to(device)
-            wmap = wm.compute_weight_map((y*255).squeeze().cpu().numpy())
             test_preds = model(X)
             test_preds_labels = torch.sigmoid(test_preds)
+            test_preds_labels = torch.round(test_preds_labels).type(torch.int32)
             if weight_map:
                 wmap = wm.compute_weight_map((y*255).squeeze().cpu().numpy())
                 loss = (torch.tensor(wmap).unsqueeze(dim=0).to(device) * loss_fn(test_preds.squeeze(dim=1), (y*255).squeeze(dim=1))).mean()
             else:
-                loss_fn(test_preds.squeeze(dim=1), (y*255).squeeze(dim=1))
+                loss = loss_fn(test_preds.squeeze(dim=1), (y*255).squeeze(dim=1))
             test_preds_labels = torch.round(test_preds_labels).type(torch.int32)
-            acc = torch.sum(test_preds_labels==(y*255).squeeze().type(torch.int32)).item()/y.numel()
+            acc = torch.sum(test_preds_labels.squeeze()==(y*255).squeeze().type(torch.int32)).item()/y.numel()
             test_loss += loss
             test_acc += acc
 

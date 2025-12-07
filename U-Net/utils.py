@@ -49,8 +49,20 @@ def save_checkpoint(model: torch.nn.Module,
     print(f"[INFO] Saving optimizer to: {optimizer_save_path}")
     torch.save( obj = optimizer.state_dict(),
                 f = optimizer_save_path)
+
+def load_checkpoint(model: torch.nn.Module,
+                    optimizer: torch.optim.Optimizer,
+                    checkpoint_name: str,
+                   device: torch.device = "cpu"):
     
-def generate_and_display_CE(model: torch.nn.Module,
+    assert checkpoint_name.endswith(".pth") or checkpoint_name.endswith(".pt"), "Invalid checkpoint. Checkpoint name should end with ',pth' or '.pt'"
+    
+    model.load_state_dict(torch.load(f"models/{checkpoint_name}")).to(device)
+    optimizer.load_state_dict(torch.load(f"optimzers/{checkpoint_name}"))
+
+    return model, optimizer
+
+def generate_and_display_multiclass(model: torch.nn.Module,
                          dataset: torch.utils.data.dataset,
                          samples: int = 3, 
                          device: torch.device = "cpu"):
@@ -75,7 +87,7 @@ def generate_and_display_CE(model: torch.nn.Module,
         plt.imshow(generated_image.detach().cpu().squeeze())
         i+=1
 
-def generate_and_display_BCE(model: torch.nn.Module,
+def generate_and_display_singleclass(model: torch.nn.Module,
                          dataset: torch.utils.data.dataset,
                          samples: int = 3, 
                          device: torch.device = "cpu"):

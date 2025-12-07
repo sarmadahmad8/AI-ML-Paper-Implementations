@@ -230,4 +230,36 @@ def create_dataloaders_Carvana(img_dir: str,
 
     return train_dataloader, test_dataloader, val_dataloader, train_dataset, test_dataset, val_dataset
 
+def choose_dataloader(data_path: str,
+                      dataset_name: str,
+                     transforms: torchvision.transforms,
+                     batch_size: int,
+                     num_workers: int,
+                     sample_size: float = 0.1):
+    
+    if dataset_name == "ISBI":
+        train_dataloader, test_dataloader, val_dataloader, train_dataset, test_dataset, val_dataset = create_dataloader_ISBI(train_dir=data_path / "train",
+                                                                      test_dir=data_path / "test",
+                                                                      transforms=transforms,
+                                                                      batch_size=batch_size,
+                                                                      num_workers=num_workers,
+                                                                     test_val_split=0.5)
+    elif dataset_name == "Cityscape":
+        (test_dataloader, train_dataloader, val_dataloader), (test_dataset, train_dataset, val_dataset) = create_dataloaders_CS(img_dir= data_path / "Cityscape Dataset" / "leftImg8bit",
+                                                                                                                       mask_dir= data_path / "Fine Annotations" / "gtFine",
+                                                                                                                       transform=transforms,
+                                                                                                                          batch_size=batch_size,
+                                                                                                                       sample_size=sample_size,
+                                                                                                                               num_workers=num_workers)
+    else:
+        train_dataloader, test_dataloader, val_dataloader, train_dataset, test_dataset, val_dataset = create_dataloaders_Carvana(img_dir=data_path / "train_images",
+                                                                                                                         mask_dir=data_path / "train_masks",
+                                                                                                                         transform= transforms,
+                                                                                                                         cropsize = (324, 836),
+                                                                                                                         sample_size = sample_size,
+                                                                                                                         batch_size=batch_size,
+                                                                                                                         num_workers=num_workers,
+                                                                                                                        train_test_val_split=(0.7, 0.2, 0.1))
+    return train_dataloader, test_dataloader, val_dataloader, train_dataset, test_dataset, val_dataset
 
+    

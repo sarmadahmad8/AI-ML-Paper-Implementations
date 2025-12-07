@@ -5,7 +5,7 @@ from typing import Dict, List
 import argparse
 from model import UNet
 
-def evaluate_model_CE(model: torch.nn.Module,
+def evaluate_model_multiclass(model: torch.nn.Module,
                    dataloader: torch.utils.data.DataLoader,
                    loss_fn: torch.nn.Module = torch.nn.CrossEntropyLoss(),
                    device: torch.device = "cpu") -> Dict[str, List[float]]:
@@ -23,7 +23,7 @@ def evaluate_model_CE(model: torch.nn.Module,
             val_preds = model(X)
             val_preds_labels = torch.argmax(torch.softmax(val_preds, dim= 1), dim= 1)
             # print(val_preds.shape, y.shape)
-            loss = loss_fn(val_preds, (y*255).squeeze(dim=0).long())
+            loss = loss_fn(val_preds, (y*255).squeeze(dim=1).long())
             acc = torch.sum(val_preds_labels.type(torch.int32)==(y*255).squeeze().type(torch.int32))/val_preds_labels.numel()
             val_loss += loss.item()
             val_acc += acc.item()
@@ -37,7 +37,7 @@ def evaluate_model_CE(model: torch.nn.Module,
 
     return results
 
-def evaluate_model_BCE(model: torch.nn.Module,
+def evaluate_model_binaryclass(model: torch.nn.Module,
                    dataloader: torch.utils.data.DataLoader,
                    loss_fn: torch.nn.Module = torch.nn.BCEWithLogitsLoss(),
                    device: torch.device = "cpu") -> Dict[str, List[float]]:
@@ -55,7 +55,7 @@ def evaluate_model_BCE(model: torch.nn.Module,
             val_preds = model(X)
             val_preds_labels = torch.round(torch.sigmoid(val_preds)).type(torch.int32)
             loss = loss_fn(val_preds.squeeze(dim=1), (y*255).squeeze(dim=1))
-            acc = torch.sum(val_preds_labels==(y*255).squeeze(dim=1).type(torch.int32))/val_preds_labels.numel()
+            acc = torch.sum(val_preds_labels.squeeze()==(y*255).squeeze(dim=1).type(torch.int32))/val_preds_labels.numel()
             val_loss += loss
             val_acc += acc
 
