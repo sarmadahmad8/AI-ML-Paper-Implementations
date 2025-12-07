@@ -272,7 +272,7 @@ def create_dataloaders_Carvana(img_dir: str,
                                train_test_val_split: Tuple[float, float, float] = (0.7, 0.2, 0.1)
                               ) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.Dataset]:
 
-        """
+    """
     Create train, test, and validation dataloaders for the Carvana data using the CarvanaDataset class.
 
     Args:
