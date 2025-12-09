@@ -103,7 +103,7 @@ if data_path.stem == "ISBI":
 elif data_path.stem == "CityScape":
     results = engine.train_CS(model= model_0,
                                 train_dataloader= train_dataloader,
-                                test_dataloader= test_dataloader,
+                                test_dataloader= val_dataloader,
                                 optimizer= optimizer,
                                 loss_fn= loss_fn,
                                 device= device,

@@ -42,7 +42,7 @@ def download_data(dataset_name: str):
                             data_path,
                             dirs_exist_ok=True)
             print(f"Data copied to working directory: {data_path}") 
-            os.remove(isbi_data_path)
+            shutil.rmtree(isbi_data_path)
             
     elif dataset_name == "Cityscape":
         data_path = Path("data/CityScape")
@@ -66,7 +66,7 @@ def download_data(dataset_name: str):
                             data_path,
                             dirs_exist_ok=True)
             print(f"Data copied to working directory: {data_path}") 
-            os.remove(cityscape_data_path)
+            shutil.rmtree(cityscape_data_path)
 
     else:
         data_path = Path("data/Carvana")
@@ -90,6 +90,6 @@ def download_data(dataset_name: str):
                             data_path,
                             dirs_exist_ok=True)
             print(f"Data copied to working directory: {data_path}") 
-            os.remove(carvana_data_path)
+            shutil.rmtree(carvana_data_path)
 
     return data_path
