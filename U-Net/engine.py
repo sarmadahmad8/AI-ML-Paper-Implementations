@@ -270,6 +270,7 @@ def train_step_CS(model: torch.nn.Module,
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
 
+    print(y_preds_labels.unique())
     train_loss /= len(dataloader)
     train_acc /= len(dataloader)
     return train_loss, train_acc
