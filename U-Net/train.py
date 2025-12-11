@@ -25,6 +25,7 @@ from typing import Tuple
 import torch
 import torch.nn as nn
 from torchvision import transforms
+from collections import Counter
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--dataset_name", type= str, help= "Provide name of dataset to download as string (e.g 'ISBI', 'Cityscape', 'Carvana')")
@@ -43,23 +44,50 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 data_path = download_data(dataset_name=args.dataset_name)
 
-if data_path.stem == "ISBI":
-    transforms = transforms.Compose([transforms.Resize(size=(512, 512)),
-                                     transforms.ToTensor()
-                                    ])
-else:
-    transforms = transforms.Compose([transforms.Resize(size=(512, 1024)),
-                                     transforms.ToTensor()
-                                    ])
+img_transforms = transforms.Compose([transforms.Resize(size=(512, 1024),
+                                                     interpolation=transforms.InterpolationMode.NEAREST),
+                                transforms.ToTensor()
+                               ])
+mask_transforms = transforms.Compose([transforms.Resize(size=(512, 1024),
+                                                     interpolation=transforms.InterpolationMode.NEAREST),
+                                      transforms.CenterCrop(size=(324, 836)),
+                                      transforms.ToTensor()
+                               ])
 
 train_dataloader, test_dataloader, val_dataloader, train_dataset, test_dataset, val_dataset = choose_dataloader(data_path= data_path,
                                                                                                                 dataset_name=args.dataset_name,
-                                                                                                               transforms=transforms,
+                                                                                                               img_transforms=img_transforms,
+                                                                                                                mask_transforms = mask_transforms,
                                                                                                                batch_size= args.batch_size,
                                                                                                                num_workers = args.num_workers,
-                                                                                                               sample_size = args.sample_size)
+                                                                                                               sample_size = args.sample_size,
+                                                                                                               remove_classes=[0, 2, 5, 10, 14, 15, 16, 18, 19, 25, 27, 29, 30, 31, 32],
+                                                                                                                       remap_classes= {-1: -1, 4: 0, 6: 1, 7: 2, 8: 3, 9: 4, 11: 5, 12: 6, 13: 7, 17: 8, 20: 9, 21: 10, 22: 11, 23: 12, 24: 13, 26: 14, 28: 15, 33: 16}
+                                                                                                               )
+# Calculating weights for Cityscape dataset
+if data_path.stem == "CityScape":
+    print(f" Calculating class weights for Cityscape dataset based on sample size...")
+    class_count = Counter()
+    
+    for i in range(len(train_dataset)):
+        X, y = train_dataset[i]
+        class_count.update(y.flatten().tolist())
+    
+    sorted_class_count = sorted(class_count.items())
+    
+    for class_idx, count in sorted_class_count:
+        counts_only_ascending.append(count)
+    
+    pixel_counts = torch.tensor(counts_only_ascending, dtype=torch.float32)
+    # frequency of weights
+    weights = 1.0 / (pixel_counts + 1e-3)
+    # normalize weights
+    weights = weights / weights.sum() * len(weights)
+    # clamp max weights
+    weights = torch.clamp(weights, max=10.0)
+    print(f"List of weights calculated: {weights}, Length of weights list: {len(weights)}")
 
-print(args.use_weight_map)
+# print(args.use_weight_map)
 if data_path.stem == "ISBI":
     model_0 = UNet(in_channels=1,
                    out_channels=1)
@@ -70,8 +98,10 @@ if data_path.stem == "ISBI":
     
 elif data_path.stem == "CityScape":
     model_0 = UNet(in_channels=3,
-                   out_channels=34)
-    loss_fn = nn.CrossEntropyLoss()
+                   out_channels=18)
+    loss_fn = nn.CrossEntropyLoss(ignore_index = -1,
+                                 weight = weights.to(device)
+                                 )
     
 else:
     model_0 = UNet(in_channels=3,

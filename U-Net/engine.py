@@ -261,9 +261,10 @@ def train_step_CS(model: torch.nn.Module,
         X, y = X.to(device), y.to(device)
         y_preds = model(X)
         y_preds_labels = torch.argmax(torch.softmax(y_preds, dim=1), dim=1)
-        loss = loss_fn(y_preds, (y*255).squeeze(dim=1).round().long())
+        loss = loss_fn(y_preds, y.squeeze(dim=1))
         train_loss += loss.item()
-        acc = torch.sum(y_preds_labels.type(torch.int32) == (y*255).squeeze(dim=1).type(torch.int32))/y_preds_labels.numel()
+        # print(y_preds_labels.unique())
+        acc = torch.sum(y_preds_labels == y.squeeze(dim=1))/y_preds_labels.numel()
         train_acc += acc.item()
         optimizer.zero_grad()
         loss.backward()
@@ -308,8 +309,8 @@ def test_step_CS(model: torch.nn.Module,
             X, y = X.to(device), y.to(device)
             test_preds = model(X)
             test_preds_labels = torch.argmax(torch.softmax(test_preds, dim=1), dim=1)
-            loss = loss_fn(test_preds, (y*255).squeeze(dim=1).round().long())
-            acc = torch.sum(test_preds_labels.type(torch.int32) == (y*255).squeeze(dim=1).type(torch.int32))/test_preds_labels.numel()
+            loss = loss_fn(test_preds, y.squeeze(dim=1))
+            acc = torch.sum(test_preds_labels == y.squeeze(dim=1))/test_preds_labels.numel()
             test_loss += loss.item()
             test_acc += acc.item()
 
@@ -426,6 +427,7 @@ def train_step_CV(model: torch.nn.Module,
             loss = (torch.tensor(wmap).unsqueeze(dim=0).to(device) * loss_fn(y_preds.squeeze(dim=1), (y*255).squeeze(dim=1))).mean()
         else:
             loss = loss_fn(y_preds.squeeze(dim=1), (y*255).squeeze(dim=1))
+        print(y_preds_labels.type(torch.int32).unique())
         train_loss += loss
         acc = torch.sum(binary_preds_labels.squeeze()==(y*255).squeeze().type(torch.int32)).item()/y.numel()
         train_acc += acc
