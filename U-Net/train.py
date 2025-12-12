@@ -26,6 +26,7 @@ import torch
 import torch.nn as nn
 from torchvision import transforms
 from collections import Counter
+from tqdm.auto import tqdm
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--dataset_name", type= str, help= "Provide name of dataset to download as string (e.g 'ISBI', 'Cityscape', 'Carvana')")
@@ -69,12 +70,12 @@ if data_path.stem == "CityScape":
     print(f" Calculating class weights for Cityscape dataset based on sample size...")
     class_count = Counter()
     
-    for i in range(len(train_dataset)):
+    for i in tqdm(range(len(train_dataset))):
         X, y = train_dataset[i]
         class_count.update(y.flatten().tolist())
     
     sorted_class_count = sorted(class_count.items())
-    
+    counts_only_ascending = []
     for class_idx, count in sorted_class_count:
         counts_only_ascending.append(count)
     
@@ -85,7 +86,7 @@ if data_path.stem == "CityScape":
     weights = weights / weights.sum() * len(weights)
     # clamp max weights
     weights = torch.clamp(weights, max=10.0)
-    print(f"List of weights calculated: {weights}, Length of weights list: {len(weights)}")
+    # print(f"List of weights calculated: {weights}, Length of weights list: {len(weights)}")
 
 # print(args.use_weight_map)
 if data_path.stem == "ISBI":

@@ -271,7 +271,7 @@ def train_step_CS(model: torch.nn.Module,
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
 
-    print(y_preds_labels.unique())
+    # print(y_preds_labels.unique())
     train_loss /= len(dataloader)
     train_acc /= len(dataloader)
     return train_loss, train_acc
@@ -427,7 +427,7 @@ def train_step_CV(model: torch.nn.Module,
             loss = (torch.tensor(wmap).unsqueeze(dim=0).to(device) * loss_fn(y_preds.squeeze(dim=1), (y*255).squeeze(dim=1))).mean()
         else:
             loss = loss_fn(y_preds.squeeze(dim=1), (y*255).squeeze(dim=1))
-        print(y_preds_labels.type(torch.int32).unique())
+        # print(y_preds_labels.type(torch.int32).unique())
         train_loss += loss
         acc = torch.sum(binary_preds_labels.squeeze()==(y*255).squeeze().type(torch.int32)).item()/y.numel()
         train_acc += acc

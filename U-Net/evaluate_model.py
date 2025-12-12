@@ -45,8 +45,8 @@ def evaluate_model_multiclass(model: torch.nn.Module,
             val_preds = model(X)
             val_preds_labels = torch.argmax(torch.softmax(val_preds, dim= 1), dim= 1)
             # print(val_preds.shape, y.shape)
-            loss = loss_fn(val_preds, (y*255).squeeze(dim=1).long())
-            acc = torch.sum(val_preds_labels.type(torch.int32)==(y*255).squeeze(dim=1).type(torch.int32))/val_preds_labels.numel()
+            loss = loss_fn(val_preds, y.squeeze(dim=1))
+            acc = torch.sum(val_preds_labels==y.squeeze(dim=1))/val_preds_labels.numel()
             val_loss += loss.item()
             val_acc += acc.item()
 

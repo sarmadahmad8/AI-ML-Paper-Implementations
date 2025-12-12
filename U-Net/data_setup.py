@@ -24,7 +24,7 @@ class ISBIDataset(Dataset):
         
         self.img_paths_list = sorted(list(Path(data_dir).glob("imgs/*.png")))
         self.label_paths_list = sorted(list(Path(data_dir).glob("labels/*.png")))
-        self.mask_crop = torchvision.transforms.CenterCrop(size=(324, 324))
+        self.mask_crop = torchvision.transforms.CenterCrop(size=(324, 836))
     
     def load_images(self, index: int) -> Image.Image:
         img = Image.open(self.img_paths_list[index])
@@ -330,7 +330,6 @@ def create_dataloaders_Carvana(img_dir: str,
     full_dataset = CarvanaDataset(img_dir= img_dir,
                                   mask_dir= mask_dir,
                                   transform= transform,
-                                  mask_resize= mask_resize,
                                   sample_size= sample_size)
 
     train_split = int(train_test_val_split[0]*len(full_dataset))
