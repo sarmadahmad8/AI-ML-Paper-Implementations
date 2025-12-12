@@ -70,29 +70,30 @@ class MixFFN(nn.Module):
                  dropout: float = 0.1):
         super().__init__()
 
-        self.mlp = nn.Sequential(nn.LayerNorm(normalized_shape=embedding_dim),
+        self.mlp_1 = nn.Sequential(nn.LayerNorm(normalized_shape=embedding_dim),
                                 nn.Linear(in_features=embedding_dim,
-                                            out_features=embedding_dim * expansion_factor),
-                                nn.GELU(),
-                                nn.Dropout(p=dropout,
-                                            inplace=True),
-                                nn.Linear(in_features=embedding_dim * expansion_factor,
-                                            out_features=embedding_dim),
-                                nn.Dropout(p=dropout,
-                                            inplace=True)
-                                )
-        self.pos_embed_conv = nn.Conv2d(in_channels=embedding_dim,
-                                        out_channels=embedding_dim,
+                                            out_features=embedding_dim * expansion_factor)
+                                  )
+        self.pos_embed_conv = nn.Conv2d(in_channels=embedding_dim * expansion_factor,
+                                        out_channels=embedding_dim * expansion_factor,
                                         kernel_size=3,
                                         stride=1,
                                         padding_mode='zeros',
-                                        padding=1
+                                        padding=1,
+                                        bias=True,
+                                        groups=embedding_dim * expansion_factor
                                        )
+        self.mlp_2 = nn.Sequential(nn.LayerNorm(normalized_shape=embedding_dim * expansion_factor),
+                                nn.Linear(in_features=embedding_dim * expansion_factor,
+                                            out_features=embedding_dim)
+                                  )
         self.gelu = nn.GELU()
+        self.dropout = nn.Dropout(p=dropout,
+                                  inplace=True)
 
     def forward(self,
                 x_in: torch.Tensor) -> torch.Tensor:
-        x = self.mlp(x_in)
+        x = self.mlp_1(x_in)
         # print(x.shape)
         x = x.permute(2, 0, 1)
         # print(x.shape)
@@ -102,8 +103,10 @@ class MixFFN(nn.Module):
         # print(x.shape)
         x = self.gelu(x)
         # print(x.shape)
-        x = self.mlp(x)
+        x = self.dropout(x)
+        x = self.mlp_2(x)
         # print(x.shape)
+        x = self.dropout(x)
         return x + x_in
 
 class TransformerBlock(nn.Module):
@@ -153,7 +156,7 @@ class SegFormerEncoder(nn.Module):
 
         self.height = height
         self.width = width
-
+        self.reduction = ((height[0] * 4) // (reduction[0]), (height[0] * 4) // (reduction[0] * reduction[1]), (height[0] * 4) // (reduction[0] * reduction[1] * reduction[2]), (height[0] * 4) // (reduction[0] * reduction[1] * reduction[2])* reduction[3])
         self.encoder_layer = nn.ModuleList()
 
         for idx, channel in enumerate(in_channels):
@@ -164,7 +167,7 @@ class SegFormerEncoder(nn.Module):
                                                      padding= padding[idx]),
                                      TransformerBlock(embedding_dim=out_channels[idx],
                                                         num_heads= num_heads[idx],
-                                                        reduction= reduction[idx],
+                                                        reduction= self.reduction[idx],
                                                         expansion_factor= expansion_factor[idx],
                                                         num_layers= num_layers[idx],
                                                         attn_dropout= attn_dropout,
@@ -197,32 +200,16 @@ class SegFormerDecoder(nn.Module):
         self.mlp_block = nn.ModuleList()
         self.upsample = nn.ModuleList()
         for idx, channel in enumerate(out_channels):
-            self.mlp_block.append(nn.Sequential(nn.Linear(in_features=channel,
-                                                    out_features= channel *4),
-                                          nn.GELU(),
-                                          nn.Dropout(p= dropout,
-                                                     inplace=True),
-                                          nn.Linear(in_features=channel*4,
-                                                    out_features=unified_channel_size),
-                                          nn.Dropout(p= dropout,
-                                                     inplace=True)
-                                         )
+            self.mlp_block.append(nn.Linear(in_features=channel,
+                                                    out_features= unified_channel_size)
                            )
             self.upsample.append(nn.Upsample(scale_factor= scale[idx],
                                                     mode= 'bilinear')
                                 )
 
 
-        self.mlp_layer = nn.Sequential(nn.Linear(in_features=4 * unified_channel_size,
-                                                         out_features= unified_channel_size* 4 * 4),
-                                                       nn.GELU(),
-                                                       nn.Dropout(p=dropout,
-                                                                  inplace=True),
-                                                       nn.Linear(in_features=unified_channel_size * 4 * 4,
-                                                                 out_features=unified_channel_size),
-                                                       nn.Dropout(p=0.1,
-                                                                  inplace=True)
-                                              )
+        self.mlp_layer = nn.Linear(in_features=4 * unified_channel_size,
+                                                         out_features= unified_channel_size)
         self.linear_projection = nn.Linear(in_features= unified_channel_size,
                                             out_features= num_classes)
 

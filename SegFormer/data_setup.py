@@ -7,7 +7,7 @@ from torchvision import transforms
 from torch.utils.data import Dataset, DataLoader
 from PIL import Image
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, List, Dict
 from torch.utils.data import random_split
 
 class ISBIDataset(Dataset):
@@ -24,7 +24,7 @@ class ISBIDataset(Dataset):
         
         self.img_paths_list = sorted(list(Path(data_dir).glob("imgs/*.png")))
         self.label_paths_list = sorted(list(Path(data_dir).glob("labels/*.png")))
-        self.mask_crop = torchvision.transforms.CenterCrop(size=(324, 324))
+        self.mask_crop = torchvision.transforms.CenterCrop(size=(324, 836))
     
     def load_images(self, index: int) -> Image.Image:
         img = Image.open(self.img_paths_list[index])
@@ -119,20 +119,24 @@ class CityscapeDataset(Dataset):
     def __init__(self,
                  img_dir: str,
                  mask_dir: str,
-                 crop_size: Tuple[ int, int],
-                transform: torchvision.transforms = None,
-                sample_size: float = 0.2):
+                img_transforms: torchvision.transforms.Compose = None,
+                 mask_transforms: torchvision.transforms.Compose = None,
+                sample_size: float = 0.2,
+                remove_classes: List[int] = None,
+                remap_classes: Dict[int, int] = None):
         self.img_dir = img_dir
         self.mask_dir = mask_dir
-        self.transform = transform
-
+        self.img_transforms = img_transforms
+        self.mask_transforms = mask_transforms
+        self.remove_classes = remove_classes
+        self.remap_classes = remap_classes
+        self.ignore_index = -1
+        
         self.img_list = sorted(list(Path(img_dir).glob("*/*.png")))
         self.mask_list = sorted(list(Path(mask_dir).glob("*/*labelIds.png")))
         self.sample_size = int(sample_size*len(self.img_list))
         self.img_list, self.mask_list = self.img_list[:self.sample_size], self.mask_list[:self.sample_size]
 
-        self.mask_crop = torchvision.transforms.CenterCrop(size=crop_size)
-        # print(len(self.img_list), len(self.mask_list))
         assert len(self.img_list)==len(self.mask_list), "Number of items in mask directory do not match number of items in image directory"
     def load_images(self, 
                     index: int) -> Image.Image:
@@ -147,20 +151,39 @@ class CityscapeDataset(Dataset):
 
     def __getitem__(self, 
                     index: int) -> Tuple[torch.tensor, torch.tensor]:
-        if self.transform:
-            return self.transform(self.load_images(index=index)), self.mask_crop(self.transform(self.load_masks(index=index))*255)
+        
+        img = self.load_images(index=index)
+        mask = self.load_masks(index=index)
+        
+        if self.img_transforms:
+            img = self.img_transforms(img)
 
-        else:
-            return self.load_images(index), self.load_masks(index)
+        if self.mask_transforms:
+            mask = (self.mask_transforms(mask) * 255).round().long()
+
+        if self.remove_classes:
+            for cls in self.remove_classes:
+                mask[mask == cls] = self.ignore_index
+
+        if self.remap_classes is not None:
+            mask_remapped = torch.zeros_like(mask)
+            for orig_class, new_class in self.remap_classes.items():
+                mask_remapped[mask == orig_class] = new_class
+
+            mask = mask_remapped
+
+        return img, mask
 
 
 def create_dataloaders_CS(img_dir: str,
                        mask_dir: str,
-                       transform: torchvision.transforms,
+                       img_transforms: torchvision.transforms.Compose,
+                          mask_transforms: torchvision.transforms.Compose,
                       batch_size: int,
-                        crop_size: Tuple[int, int],
                       num_workers: int = 4,
-                      sample_size: float = 0.2):
+                      sample_size: float = 0.2,
+                         remove_classes: List[int] = None,
+                         remap_classes: Dict[int, int] = None):
 
     """
     Create train, test, and validation dataloaders for the Cityscape data using the CityscapeDataset class.
@@ -196,9 +219,11 @@ def create_dataloaders_CS(img_dir: str,
         dataset = f"{item}_dataset"
         datasets[dataset] = CityscapeDataset(img_dir=item,
                                           mask_dir=mask_dir / item.stem,
-                                          transform=transform,
+                                          img_transforms=img_transforms,
+                                             mask_transforms = mask_transforms,
                                           sample_size=sample_size,
-                                            crop_size = crop_size)
+                                            remove_classes= remove_classes,
+                                            remap_classes = remap_classes)
         dataloader = f"{item}_dataloader"
         if item.stem != "val":
             dataloaders[dataloader] = DataLoader(dataset=datasets[dataset],
@@ -224,16 +249,13 @@ class CarvanaDataset(Dataset):
                  img_dir: str,
                  mask_dir: str,
                  transform: torchvision.transforms,
-                 cropsize: Tuple[int, int] = None,
                  sample_size: float = 0.2):
         
         self.transform = transform
         self.img_list = sorted(list(img_dir.glob("*.jpg")))
         self.mask_list = sorted(list(mask_dir.glob("*.png")))
-        if cropsize:
-            self.center_crop = torchvision.transforms.CenterCrop(size=(cropsize))
-        else: 
-            self.center_crop = None
+        self.mask_resize = torchvision.transforms.Resize(size=(324, 836))
+        
         self.sample_size = int(sample_size*len(self.img_list))
         self.mask_list, self.img_list = self.mask_list[: self.sample_size], self.img_list[:self.sample_size]
 
@@ -260,15 +282,15 @@ class CarvanaDataset(Dataset):
             img = self.transform(img)
             mask = self.transform(mask)
 
-        if self.center_crop:
-            mask = self.center_crop(mask)
+        if self.mask_resize:
+            mask = self.mask_resize(mask)
 
         return img, mask
 
 def create_dataloaders_Carvana(img_dir: str,
                                mask_dir: str,
                                transform: torchvision.transforms,
-                               cropsize: Tuple[int, int] = None,
+                               mask_resize: Tuple[int, int] = None,
                                sample_size: float = 0.2,
                                batch_size: int = 2,
                                num_workers: int = 4,
@@ -308,7 +330,6 @@ def create_dataloaders_Carvana(img_dir: str,
     full_dataset = CarvanaDataset(img_dir= img_dir,
                                   mask_dir= mask_dir,
                                   transform= transform,
-                                  cropsize= cropsize,
                                   sample_size= sample_size)
 
     train_split = int(train_test_val_split[0]*len(full_dataset))
@@ -336,11 +357,13 @@ def create_dataloaders_Carvana(img_dir: str,
 
 def choose_dataloader(data_path: str,
                       dataset_name: str,
-                     transforms: torchvision.transforms,
-                      crop_size: Tuple[int, int],
+                     img_transforms: torchvision.transforms.Compose,
+                      mask_transforms: torchvision.transforms.Compose,
                      batch_size: int,
                      num_workers: int,
-                     sample_size: float = 0.1):
+                     sample_size: float = 0.1,
+                     remove_classes: List[int] = None,
+                     remap_classes: Dict[int, int] = None):
 
     """
     A function to choose create_dataloader based on the data downloaded.
@@ -373,23 +396,24 @@ def choose_dataloader(data_path: str,
     if dataset_name == "ISBI":
         train_dataloader, test_dataloader, val_dataloader, train_dataset, test_dataset, val_dataset = create_dataloader_ISBI(train_dir=data_path / "train",
                                                                       test_dir=data_path / "test",
-                                                                      transforms=transforms,
+                                                                      transforms=img_transforms,
                                                                       batch_size=batch_size,
                                                                       num_workers=num_workers,
                                                                      test_val_split=0.5)
     elif dataset_name == "Cityscape":
         (test_dataloader, train_dataloader, val_dataloader), (test_dataset, train_dataset, val_dataset) = create_dataloaders_CS(img_dir= data_path / "Cityscape Dataset" / "leftImg8bit",
                                                                                                                        mask_dir= data_path / "Fine Annotations" / "gtFine",
-                                                                                                                       transform=transforms,
+                                                                                                                       img_transforms=img_transforms,
+                                                                                                                        mask_transforms= mask_transforms,
                                                                                                                           batch_size=batch_size,
                                                                                                                        sample_size=sample_size,
                                                                                                                                num_workers=num_workers,
-                                                                                                                               crop_size = crop_size)
+                                                                                                                               remove_classes = remove_classes,
+                                                                                                                               remap_classes = remap_classes)
     else:
         train_dataloader, test_dataloader, val_dataloader, train_dataset, test_dataset, val_dataset = create_dataloaders_Carvana(img_dir=data_path / "train_images",
                                                                                                                          mask_dir=data_path / "train_masks",
-                                                                                                                         transform= transforms,
-                                                                                                                         cropsize = crop_size,
+                                                                                                                         transform= img_transforms,
                                                                                                                          sample_size = sample_size,
                                                                                                                          batch_size=batch_size,
                                                                                                                          num_workers=num_workers,
