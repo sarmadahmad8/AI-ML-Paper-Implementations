@@ -355,6 +355,124 @@ def create_dataloaders_Carvana(img_dir: str,
 
     return train_dataloader, test_dataloader, val_dataloader, train_dataset, test_dataset, val_dataset
 
+from torch.utils.data import Dataset, DataLoader, random_split
+import torchvision
+from torchvision import transforms
+from PIL import Image
+from typing import Tuple, List, Dict
+
+class ADE20KDataset(Dataset):
+    def __init__(self,
+                 img_dir: str,
+                 mask_dir: str,
+                 img_transforms: torchvision.transforms.Compose = None,
+                 mask_transforms: torchvision.transforms.Compose = None,
+                 remove_classes: List[int] = None,
+                 remap_classes: Dict[int, int] = None,
+                 sample_size: float = 0.2):
+
+        self.img_transforms = img_transforms
+        self.mask_transforms = mask_transforms
+
+        self.img_list = sorted(list(img_dir.glob("*.jpg")))
+        self.mask_list = sorted(list(mask_dir.glob("*.png")))
+        self.sample_size = int(sample_size * len(self.img_list))
+        assert len(self.img_list) !=0 or len(self.mask_list) != 0, "Image or Mask list is empty, check input directory or file type"
+        assert len(self.img_list) == len(self.mask_list), "Number of images and mask must be the same"
+        self.img_list = self.img_list[: self.sample_size]
+        self.mask_list = self.mask_list[: self.sample_size]
+
+        self.ignore_index = -1
+        self.remove_classes = remove_classes
+        self.remap_classes = remap_classes
+        
+    def load_image(self,
+                   idx: int):
+        
+        return Image.open(self.img_list[idx]).convert("RGB")
+
+    def load_mask(self,
+                  idx: int):
+
+        return Image.open(self.mask_list[idx])
+
+    def __len__(self):
+        
+        return len(self.img_list)
+
+    def __getitem__(self,
+                    idx: int):
+
+        img = self.load_image(idx= idx)
+        mask = self.load_mask(idx= idx)
+        
+        if self.img_transforms:
+            img = self.img_transforms(img)
+            
+        if self.mask_transforms:
+            mask = (self.mask_transforms(mask)*255).round().long()
+
+        if self.remove_classes:
+            for class_idx in self.remove_classes:
+                mask[mask == class_idx] = self.ignore_index
+
+        if self.remap_classes:
+            mask_remapped = torch.zeros_like(mask)
+            for original_id, new_id in self.remap_classes.items():
+                mask_remapped[mask == original_id] = new_id
+
+            mask = mask_remapped
+            
+        return img, mask
+
+def create_dataloader_ADE(data_path: str,
+                          img_transforms: torchvision.transforms.Compose,
+                          mask_transforms: torchvision.transforms.Compose,
+                          sample_size: float,
+                          batch_size: int,
+                          num_workers: int = 4,
+                         test_val_split: float = 0.5,
+                         remove_classes: List[int] = None,
+                         remap_classes: Dict[int,  int] = None):
+
+    train_dataset = ADE20KDataset(img_dir= data_path / "ADEChallengeData2016" / "images" / "training",
+                                  mask_dir= data_path / "ADEChallengeData2016" / "annotations" / "training",
+                                  sample_size= sample_size,
+                                  img_transforms= img_transforms,
+                                 mask_transforms=mask_transforms,
+                                 remove_classes= remove_classes,
+                                 remap_classes= remap_classes)
+
+    test_dataset = ADE20KDataset(img_dir= data_path / "ADEChallengeData2016" / "images" / "validation",
+                                  mask_dir= data_path / "ADEChallengeData2016" / "annotations" / "validation",
+                                  sample_size= sample_size,
+                                  img_transforms= img_transforms,
+                                 mask_transforms=mask_transforms,
+                                remove_classes= remove_classes,
+                                remap_classes= remap_classes)
+
+    test_split = int(test_val_split * len(test_dataset))
+    val_split = len(test_dataset) - test_split
+
+    test_dataset, val_dataset = random_split(dataset= test_dataset,
+                                                lengths=[test_split, val_split])
+
+    train_dataloader = DataLoader(dataset= train_dataset,
+                                    batch_size= batch_size,
+                                    num_workers= num_workers,
+                                    shuffle= True)
+
+    test_dataloader= DataLoader(dataset= test_dataset,
+                                    batch_size=batch_size,
+                                    num_workers= num_workers,
+                                    shuffle= True)
+    val_dataloader = DataLoader(dataset= val_dataset,
+                                batch_size= batch_size,
+                                num_workers= num_workers,
+                                shuffle= False)
+
+    return train_dataloader, test_dataloader, val_dataloader, train_dataset, test_dataset, val_dataset
+
 def choose_dataloader(data_path: str,
                       dataset_name: str,
                      img_transforms: torchvision.transforms.Compose,
@@ -410,7 +528,7 @@ def choose_dataloader(data_path: str,
                                                                                                                                num_workers=num_workers,
                                                                                                                                remove_classes = remove_classes,
                                                                                                                                remap_classes = remap_classes)
-    else:
+    elif dataset_name == "Carvana":
         train_dataloader, test_dataloader, val_dataloader, train_dataset, test_dataset, val_dataset = create_dataloaders_Carvana(img_dir=data_path / "train_images",
                                                                                                                          mask_dir=data_path / "train_masks",
                                                                                                                          transform= img_transforms,
@@ -418,6 +536,22 @@ def choose_dataloader(data_path: str,
                                                                                                                          batch_size=batch_size,
                                                                                                                          num_workers=num_workers,
                                                                                                                         train_test_val_split=(0.7, 0.2, 0.1))
+
+     else:
+         train_dataloader, test_dataloader, val_dataloader, train_dataset, test_dataset, val_dataset = create_dataloader_ADE(data_path= data_path,
+                                                                                                                    img_transforms= img_transforms,
+                                                                                                                    mask_transforms=mask_transforms,
+                                                                                                                    sample_size= sample_size,
+                                                                                                                    batch_size= batch_size,
+                                                                                                                    num_workers= num_workers,
+                                                                                                                    test_val_split= 0.5,
+                                                                                                                   remove_classes= remove_classes,
+                                                                                                                   remap_classes= remap_classes
+                                                                                                                             )
+         
     return train_dataloader, test_dataloader, val_dataloader, train_dataset, test_dataset, val_dataset
 
     
+
+
+
