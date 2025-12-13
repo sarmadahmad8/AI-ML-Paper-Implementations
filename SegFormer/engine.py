@@ -8,6 +8,7 @@ from typing import Dict, List, Tuple
 import numpy as np
 from scipy.ndimage import distance_transform_edt, binary_erosion
 from skimage.measure import label
+from torchmetrics.classification import MulticlassJaccardIndex
 
 class WeightMap:
     def __init__(self,
@@ -233,7 +234,8 @@ def train_step_CS(model: torch.nn.Module,
                dataloader: torch.utils.data.DataLoader,
                loss_fn: torch.nn.Module,
                optimizer: torch.optim.Optimizer,
-               device: torch.device) -> Tuple[float, float]:
+               device: torch.device,
+               num_classes: int) -> Tuple[float, float]:
     """
     Trains a PyTorch model for a single epoch.
 
@@ -253,7 +255,9 @@ def train_step_CS(model: torch.nn.Module,
 
     (0.1112, 0.8743)
     """
-
+    miou_metric = MulticlassJaccardIndex(num_classes= num_classes,
+                                         average='macro',
+                                         ignore_index= -1).to(device)
     train_loss, train_acc = 0, 0
     model.to(device)
     model.train()
@@ -266,20 +270,23 @@ def train_step_CS(model: torch.nn.Module,
         # print(y_preds_labels.unique())
         acc = torch.sum(y_preds_labels == y.squeeze(dim=1))/y_preds_labels.numel()
         train_acc += acc.item()
+        miou_metric.update(y_preds_labels, y.squeeze(dim=1))
         optimizer.zero_grad()
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
 
-    # print(y_preds_labels.unique())
+    print(y_preds_labels.unique())
+    train_miou = miou_metric.compute().item()
     train_loss /= len(dataloader)
     train_acc /= len(dataloader)
-    return train_loss, train_acc
+    return train_loss, train_acc, train_miou
 
 def test_step_CS(model: torch.nn.Module,
               dataloader: torch.utils.data.DataLoader,
               loss_fn: torch.nn.Module,
-              device: torch.device) -> Tuple[float, float]:
+              device: torch.device,
+              num_classes: int) -> Tuple[float, float]:
 
     """
     Tests a PyTorch model for a single epoch.
@@ -300,7 +307,9 @@ def test_step_CS(model: torch.nn.Module,
 
     (0.1112, 0.8743)
     """
-    
+    miou_metric = MulticlassJaccardIndex(num_classes= num_classes,
+                                         average='macro',
+                                         ignore_index= -1).to(device)
     test_loss, test_acc = 0, 0
     model.to(device)
     model.eval()
@@ -311,12 +320,14 @@ def test_step_CS(model: torch.nn.Module,
             test_preds_labels = torch.argmax(torch.softmax(test_preds, dim=1), dim=1)
             loss = loss_fn(test_preds, y.squeeze(dim=1))
             acc = torch.sum(test_preds_labels == y.squeeze(dim=1))/test_preds_labels.numel()
+            miou_metric.update(test_preds_labels, y.squeeze(dim=1))
             test_loss += loss.item()
             test_acc += acc.item()
 
+        test_miou = miou_metric.compute().item()
         test_loss /= len(dataloader)
         test_acc /= len(dataloader)
-        return test_loss, test_acc
+        return test_loss, test_acc, test_miou
 
 def train_CS(model: torch.nn.Module,
           train_dataloader: torch.utils.data.DataLoader,
@@ -324,7 +335,8 @@ def train_CS(model: torch.nn.Module,
           loss_fn: torch.nn.Module,
           optimizer: torch.optim.Optimizer,
           epochs: int,
-          device: torch.device) -> Dict[str, List[float]]:
+          device: torch.device,
+          num_classes: int) -> Dict[str, List[float]]:
 
     """Trains a PyTorch model for the number of input epochs.
 
@@ -356,31 +368,39 @@ def train_CS(model: torch.nn.Module,
     """
     results = {"train_loss" :[],
                "train_acc": [],
+               "train_miou": [],
                "test_loss": [],
-               "test_acc": []}
+               "test_acc": [],
+               "test_miou": []}
 
     for epoch in tqdm(range(epochs)):
-        train_loss, train_acc = train_step_CS(model = model,
+        train_loss, train_acc, train_miou = train_step_CS(model = model,
                                            dataloader= train_dataloader,
                                            loss_fn= loss_fn,
                                            optimizer= optimizer,
-                                           device = device)
-        test_loss, test_acc = test_step_CS(model = model,
+                                           device = device,
+                                           num_classes = num_classes)
+        test_loss, test_acc, test_miou = test_step_CS(model = model,
                                         dataloader = test_dataloader,
                                         loss_fn = loss_fn,
-                                        device = device)
+                                        device = device,
+                                        num_classes = num_classes)
 
         print(f" Epoch {epoch + 1} |"
                 f" train_loss: {train_loss:.4f} |"
                 f" train_acc: {train_acc:.2f} |"
+                f" train_miou: {train_miou:.4f} |"
                 f" test_loss: {test_loss:.4f} |"
-                f" test_acc: {test_acc:.2f}"
+                f" test_acc: {test_acc:.2f} |"
+                f" test_miou: {test_miou:.4f}"
         )
 
         results["train_loss"].append(train_loss)
         results["train_acc"].append(train_acc)
+        results["train_miou"].append(train_miou)
         results["test_loss"].append(test_loss)
         results["test_acc"].append(test_acc)
+        results["test_miou"].append(test_miou)
 
     return results
 
