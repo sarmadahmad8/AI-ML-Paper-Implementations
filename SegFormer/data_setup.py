@@ -355,12 +355,6 @@ def create_dataloaders_Carvana(img_dir: str,
 
     return train_dataloader, test_dataloader, val_dataloader, train_dataset, test_dataset, val_dataset
 
-from torch.utils.data import Dataset, DataLoader, random_split
-import torchvision
-from torchvision import transforms
-from PIL import Image
-from typing import Tuple, List, Dict
-
 class ADE20KDataset(Dataset):
     def __init__(self,
                  img_dir: str,
@@ -537,8 +531,8 @@ def choose_dataloader(data_path: str,
                                                                                                                          num_workers=num_workers,
                                                                                                                         train_test_val_split=(0.7, 0.2, 0.1))
 
-     else:
-         train_dataloader, test_dataloader, val_dataloader, train_dataset, test_dataset, val_dataset = create_dataloader_ADE(data_path= data_path,
+    else:
+        train_dataloader, test_dataloader, val_dataloader, train_dataset, test_dataset, val_dataset = create_dataloader_ADE(data_path= data_path,
                                                                                                                     img_transforms= img_transforms,
                                                                                                                     mask_transforms=mask_transforms,
                                                                                                                     sample_size= sample_size,
