@@ -230,12 +230,13 @@ def train_ISBI(model: torch.nn.Module,
 
     return results
 
-def train_step_CS(model: torch.nn.Module,
+def train_step_CS_or_ADE(model: torch.nn.Module,
                dataloader: torch.utils.data.DataLoader,
                loss_fn: torch.nn.Module,
                optimizer: torch.optim.Optimizer,
                device: torch.device,
-               num_classes: int) -> Tuple[float, float]:
+               num_classes: int,
+               scheduler: torch.optim.lr_scheduler = None) -> Tuple[float, float]:
     """
     Trains a PyTorch model for a single epoch.
 
@@ -275,6 +276,8 @@ def train_step_CS(model: torch.nn.Module,
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
+        if scheduler:
+            scheduler.step()
 
     print(y_preds_labels.unique())
     train_miou = miou_metric.compute().item()
@@ -282,7 +285,7 @@ def train_step_CS(model: torch.nn.Module,
     train_acc /= len(dataloader)
     return train_loss, train_acc, train_miou
 
-def test_step_CS(model: torch.nn.Module,
+def test_step_CS_or_ADE(model: torch.nn.Module,
               dataloader: torch.utils.data.DataLoader,
               loss_fn: torch.nn.Module,
               device: torch.device,
@@ -329,14 +332,15 @@ def test_step_CS(model: torch.nn.Module,
         test_acc /= len(dataloader)
         return test_loss, test_acc, test_miou
 
-def train_CS(model: torch.nn.Module,
+def train_CS_or_ADE(model: torch.nn.Module,
           train_dataloader: torch.utils.data.DataLoader,
           test_dataloader: torch.utils.data.DataLoader,
           loss_fn: torch.nn.Module,
           optimizer: torch.optim.Optimizer,
           epochs: int,
           device: torch.device,
-          num_classes: int) -> Dict[str, List[float]]:
+          num_classes: int,
+          scheduler: torch.optim.lr_scheduler = None) -> Dict[str, List[float]]:
 
     """Trains a PyTorch model for the number of input epochs.
 
@@ -374,13 +378,14 @@ def train_CS(model: torch.nn.Module,
                "test_miou": []}
 
     for epoch in tqdm(range(epochs)):
-        train_loss, train_acc, train_miou = train_step_CS(model = model,
+        train_loss, train_acc, train_miou = train_step_CS_or_ADE(model = model,
                                            dataloader= train_dataloader,
                                            loss_fn= loss_fn,
                                            optimizer= optimizer,
+                                            scheduler = scheduler,
                                            device = device,
                                            num_classes = num_classes)
-        test_loss, test_acc, test_miou = test_step_CS(model = model,
+        test_loss, test_acc, test_miou = test_step_CS_or_ADE(model = model,
                                         dataloader = test_dataloader,
                                         loss_fn = loss_fn,
                                         device = device,
@@ -403,10 +408,6 @@ def train_CS(model: torch.nn.Module,
         results["test_miou"].append(test_miou)
 
     return results
-
-import torch
-from tqdm.auto import tqdm
-from typing import Dict, List, Tuple
 
 def train_step_CV(model: torch.nn.Module,
                dataloader: torch.utils.data.DataLoader,

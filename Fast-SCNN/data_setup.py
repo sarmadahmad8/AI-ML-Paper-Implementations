@@ -3,6 +3,7 @@ Containing various classes and functions for creating and loading dataloaders fo
 """
 import torch
 import torchvision
+import torchvision.transforms.v2
 from torchvision import transforms
 from torch.utils.data import Dataset, DataLoader
 from PIL import Image
@@ -361,14 +362,17 @@ class ADE20KDataset(Dataset):
     def __init__(self,
                  img_dir: str,
                  mask_dir: str,
-                 img_transforms: torchvision.transforms.Compose = None,
-                 mask_transforms: torchvision.transforms.Compose = None,
+                 img_transforms: torchvision.transforms.v2.Compose = None,
                  remove_classes: List[int] = None,
                  remap_classes: Dict[int, int] = None,
                  sample_size: float = 0.2):
 
         self.img_transforms = img_transforms
-        self.mask_transforms = mask_transforms
+
+        self.mask_resize = transforms.v2.Resize(size = (128, 256),
+                                                interpolation = transforms.v2.InterpolationMode.NEAREST)
+        self.normalize = transforms.v2.Normalize(mean= [0.5227, 0.4778, 0.4298],
+                                                std= [0.2149, 0.2192, 0.2266])
 
         self.img_list = sorted(list(img_dir.glob("*.jpg")))
         self.mask_list = sorted(list(mask_dir.glob("*.png")))
@@ -403,10 +407,11 @@ class ADE20KDataset(Dataset):
         mask = self.load_mask(idx= idx)
         
         if self.img_transforms:
-            img = self.img_transforms(img)
-            
-        if self.mask_transforms:
-            mask = (self.mask_transforms(mask)*255).round().long()
+            img, mask = self.img_transforms(img, mask)
+            mask = (mask * 255).round().long()
+
+        img = self.normalize(img)
+        mask = self.mask_resize(mask)
 
         if self.remove_classes:
             for class_idx in self.remove_classes:
@@ -423,7 +428,6 @@ class ADE20KDataset(Dataset):
 
 def create_dataloader_ADE(data_path: str,
                           img_transforms: torchvision.transforms.Compose,
-                          mask_transforms: torchvision.transforms.Compose,
                           sample_size: float,
                           batch_size: int,
                           num_workers: int = 4,
@@ -435,7 +439,6 @@ def create_dataloader_ADE(data_path: str,
                                   mask_dir= data_path / "ADEChallengeData2016" / "annotations" / "training",
                                   sample_size= sample_size,
                                   img_transforms= img_transforms,
-                                 mask_transforms=mask_transforms,
                                  remove_classes= remove_classes,
                                  remap_classes= remap_classes)
 
@@ -443,7 +446,6 @@ def create_dataloader_ADE(data_path: str,
                                   mask_dir= data_path / "ADEChallengeData2016" / "annotations" / "validation",
                                   sample_size= sample_size,
                                   img_transforms= img_transforms,
-                                 mask_transforms=mask_transforms,
                                 remove_classes= remove_classes,
                                 remap_classes= remap_classes)
 
@@ -472,7 +474,6 @@ def create_dataloader_ADE(data_path: str,
 def choose_dataloader(data_path: str,
                       dataset_name: str,
                      img_transforms: torchvision.transforms.Compose,
-                      mask_transforms: torchvision.transforms.Compose,
                      batch_size: int,
                      num_workers: int,
                      sample_size: float = 0.1,
@@ -535,7 +536,6 @@ def choose_dataloader(data_path: str,
     else:
         train_dataloader, test_dataloader, val_dataloader, train_dataset, test_dataset, val_dataset = create_dataloader_ADE(data_path= data_path,
                                                                                                                     img_transforms= img_transforms,
-                                                                                                                    mask_transforms=mask_transforms,
                                                                                                                     sample_size= sample_size,
                                                                                                                     batch_size= batch_size,
                                                                                                                     num_workers= num_workers,
