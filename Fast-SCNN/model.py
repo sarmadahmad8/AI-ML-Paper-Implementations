@@ -1,47 +1,57 @@
 import torch
 import torch.nn as nn
+from collections import OrderedDict
 
 class Downsample(nn.Module):
     def __init__(self,
                  in_channels: int):
         super().__init__()
 
-        self.conv_layer_1 = nn.Sequential(nn.Conv2d(in_channels=in_channels,
+        self.conv_layer_1 = nn.Sequential(
+            OrderedDict([
+                ("conv_1",nn.Conv2d(in_channels=in_channels,
                                                     out_channels= 32,
                                                     kernel_size=3,
                                                     stride=2,
-                                                    padding=1),
-                                          nn.BatchNorm2d(num_features=32),
-                                          nn.ReLU()
-                                         )
-        self.ds_conv_layer_1 = nn.Sequential(nn.Conv2d(in_channels=32,
+                                                    padding=1)),
+                 ("bn_1", nn.BatchNorm2d(num_features=32)),
+                 ("relu_1", nn.ReLU())
+            ])
+        )
+        self.ds_conv_layer_1 = nn.Sequential(
+                    OrderedDict([
+                        ("depthwise_1",nn.Conv2d(in_channels=32,
                                                         out_channels=32,
                                                         kernel_size=3,
                                                         stride= 2,
                                                         padding=1,
-                                                          groups=32),
-                                            nn.Conv2d(in_channels=32,
+                                                          groups=32)),
+                        ("pointwise_1",nn.Conv2d(in_channels=32,
                                                         out_channels=48,
                                                         kernel_size=1,
                                                         stride=1,
-                                                        padding=0),
-                                            nn.BatchNorm2d(num_features=48),
-                                            nn.ReLU()
-                                            )
+                                                        padding=0)),
+                        ("bn_2",nn.BatchNorm2d(num_features=48)),
+                        ("relu_2",nn.ReLU())
+                    ])
+        )
 
-        self.ds_conv_layer_2 = nn.Sequential(nn.Conv2d(in_channels= 48,
-                                                        out_channels=48,
-                                                        kernel_size=3,
-                                                        stride=2,
-                                                        padding=1),
-                                                nn.Conv2d(in_channels=48,
-                                                            out_channels=64,
-                                                            kernel_size=1,
-                                                            stride=1,
-                                                            padding=0),
-                                                nn.BatchNorm2d(num_features=64),
-                                                nn.ReLU()
-                                            )
+        self.ds_conv_layer_2 = nn.Sequential(
+            OrderedDict([
+                ("depthwise_2",nn.Conv2d(in_channels= 48,
+                                        out_channels=48,
+                                        kernel_size=3,
+                                        stride=2,
+                                        padding=1)),
+                ("pointwise_2",nn.Conv2d(in_channels=48,
+                                        out_channels=64,
+                                        kernel_size=1,
+                                        stride=1,
+                                        padding=0)),
+                ("bn_3",nn.BatchNorm2d(num_features=64)),
+                ("relu_3",nn.ReLU())
+            ])
+        )
 
     def forward(self,
                 x: torch.Tensor) -> torch.Tensor:
@@ -56,25 +66,30 @@ class Bottleneck(nn.Module):
                  out_channels: int):
         super().__init__()
 
-        self.bottleneck = nn.Sequential(nn.Conv2d(in_channels= in_channels,
-                                                    out_channels= in_channels * expansion_factor,
-                                                    kernel_size=1,
-                                                    stride=1,
-                                                    padding=0),
-                                        nn.ReLU(),
-                                        nn.Conv2d(in_channels= in_channels * expansion_factor,
-                                                out_channels= in_channels * expansion_factor,
-                                                kernel_size=3,
-                                                stride= stride,
-                                                padding=1,
-                                                 groups=in_channels * expansion_factor),
-                                        nn.ReLU(),
-                                        nn.Conv2d(in_channels= in_channels * expansion_factor,
-                                                    out_channels= out_channels,
-                                                    kernel_size= 1,
-                                                    stride=1,
-                                                    padding=0)
-                                       )
+        self.bottleneck = nn.Sequential(
+            OrderedDict([
+                ("pointwise_3",nn.Conv2d(in_channels= in_channels,
+                                        out_channels= in_channels * expansion_factor,
+                                        kernel_size=1,
+                                        stride=1,
+                                        padding=0)),
+                ("bn_4", nn.BatchNorm2d(num_features= in_channels * expansion_factor)),
+                ("relu_4",nn.ReLU()),
+                ("depthwise_3",nn.Conv2d(in_channels= in_channels * expansion_factor,
+                                        out_channels= in_channels * expansion_factor,
+                                        kernel_size=3,
+                                        stride= stride,
+                                        padding=1,
+                                         groups=in_channels * expansion_factor)),
+                ("bn_5", nn.BatchNorm2d(num_features= in_channels * expansion_factor)),
+                ("relu_5",nn.ReLU()),
+                ("pointwise_4",nn.Conv2d(in_channels= in_channels * expansion_factor,
+                                        out_channels= out_channels,
+                                        kernel_size= 1,
+                                        stride=1,
+                                        padding=0))
+            ])
+        )
 
     def forward(self,
                 x: torch.Tensor) -> torch.Tensor:
@@ -87,42 +102,54 @@ class PyramidPoolingModule(nn.Module):
                 channel_reduction: int):
         super().__init__()
 
-        self.pyramid_1 = nn.Sequential(nn.AdaptiveAvgPool2d(output_size=(6, 6*2)),
-                                        nn.Conv2d(in_channels=in_channels,
-                                                    out_channels= channel_reduction,
-                                                    kernel_size= 1,
-                                                    stride=1,
-                                                    padding=0),
-                                       nn.Upsample(size=(32, 64),
-                                                   mode= "bilinear")
-                                      )
-        self.pyramid_2 = nn.Sequential(nn.AdaptiveAvgPool2d(output_size=(3, 3*2)),
-                                        nn.Conv2d(in_channels=in_channels,
-                                                    out_channels= channel_reduction,
-                                                    kernel_size= 1,
-                                                    stride=1,
-                                                    padding=0),
-                                       nn.Upsample(size=(32, 64),
-                                                   mode= "bilinear")
-                                      )
-        self.pyramid_3 = nn.Sequential(nn.AdaptiveAvgPool2d(output_size=(2, 2*2)),
-                                        nn.Conv2d(in_channels=in_channels,
-                                                    out_channels= channel_reduction,
-                                                    kernel_size= 1,
-                                                    stride=1,
-                                                    padding=0),
-                                       nn.Upsample(size=(32, 64),
-                                                   mode= "bilinear")
-                                      )
-        self.pyramid_4 = nn.Sequential(nn.AdaptiveAvgPool2d(output_size=(1, 1*2)),
-                                        nn.Conv2d(in_channels=in_channels,
-                                                    out_channels= channel_reduction,
-                                                    kernel_size= 1,
-                                                    stride=1,
-                                                    padding=0),
-                                       nn.Upsample(size=(32, 64),
-                                                   mode= "bilinear")
-                                      )
+        self.pyramid_1 = nn.Sequential(
+            OrderedDict([
+                ("avepool_1",nn.AdaptiveAvgPool2d(output_size=(6, 6*2))),
+                ("pointwise_5",nn.Conv2d(in_channels=in_channels,
+                                        out_channels= channel_reduction,
+                                        kernel_size= 1,
+                                        stride=1,
+                                        padding=0)),
+                ("upsample_1",nn.Upsample(size=(32, 64),
+                                        mode= "bilinear"))
+            ])
+        )
+        self.pyramid_2 = nn.Sequential(
+            OrderedDict([
+                ("avepool_2",nn.AdaptiveAvgPool2d(output_size=(3, 3*2))),
+                ("pointwise_6",nn.Conv2d(in_channels=in_channels,
+                                        out_channels= channel_reduction,
+                                        kernel_size= 1,
+                                        stride=1,
+                                        padding=0)),
+                ("upsample_2",nn.Upsample(size=(32, 64),
+                                        mode= "bilinear"))
+            ])
+        )
+        self.pyramid_3 = nn.Sequential(
+            OrderedDict([
+                ("avepool_3",nn.AdaptiveAvgPool2d(output_size=(2, 2*2))),
+                ("pointwise_7",nn.Conv2d(in_channels=in_channels,
+                                        out_channels= channel_reduction,
+                                        kernel_size= 1,
+                                        stride=1,
+                                        padding=0)),
+                ("upsample_3",nn.Upsample(size=(32, 64),
+                                        mode= "bilinear"))
+            ])
+        )
+        self.pyramid_4 = nn.Sequential(
+            OrderedDict([
+                ("avepool_4", nn.AdaptiveAvgPool2d(output_size=(1, 1*2))),
+                ("pointwise_8", nn.Conv2d(in_channels=in_channels,
+                                        out_channels= channel_reduction,
+                                        kernel_size= 1,
+                                        stride=1,
+                                        padding=0)),
+                ("upsample_4", nn.Upsample(size=(32, 64),
+                                         mode= "bilinear"))
+            ])
+        )
         
 
     def forward(self,
@@ -147,21 +174,26 @@ class FeatureFusionModule(nn.Module):
 
         super().__init__()
 
-        self.ffm = nn.Sequential(nn.Upsample(size=(128, 256), 
-                                            mode= "bilinear"),
-                                 nn.Conv2d(in_channels=in_channels,
-                                            out_channels= in_channels,
-                                            kernel_size=3,
-                                            stride=1,
-                                            padding=1,
-                                            groups= in_channels),
-                                 nn.ReLU(),
-                                 nn.Conv2d(in_channels= in_channels,
-                                            out_channels= in_channels,
-                                            kernel_size=1,
-                                            stride=1,
-                                            padding=0)
-                                )
+        self.ffm = nn.Sequential(
+            OrderedDict([
+                ("upsample_5", nn.Upsample(size=(128, 256), 
+                                        mode= "bilinear")),
+                ("depthwise_4", nn.Conv2d(in_channels=in_channels,
+                                        out_channels= in_channels,
+                                        kernel_size=3,
+                                        stride=1,
+                                        padding=4,
+                                       dilation= 4,
+                                        groups= in_channels)),
+                ("bn_6", nn.BatchNorm2d(num_features=in_channels)),
+                ("relu_6", nn.ReLU()),
+                ("pointwise_9", nn.Conv2d(in_channels= in_channels,
+                                        out_channels= in_channels,
+                                        kernel_size=1,
+                                        stride=1,
+                                        padding=0))
+            ])
+        )
     def forward(self,
                 x: torch.Tensor) -> torch.Tensor:
 
@@ -170,28 +202,44 @@ class FeatureFusionModule(nn.Module):
 class Classifier(nn.Module):
     def __init__(self,
                  in_channels: int,
-                out_channels: int):
+                out_channels: int,
+                dropout: float = 0.1):
 
         super().__init__()
 
-        self.classifier = nn.Sequential(nn.Conv2d(in_channels=in_channels,
-                                                    out_channels=in_channels,
-                                                    kernel_size=3,
-                                                    stride=1,
-                                                    padding=1,
-                                                    groups= in_channels),
-                                        nn.Conv2d(in_channels= in_channels,
-                                                    out_channels= in_channels,
-                                                    kernel_size= 3,
-                                                    stride=1,
-                                                    padding=1,
-                                                    groups= in_channels),
-                                        nn.Conv2d(in_channels= in_channels,
-                                                    out_channels= out_channels,
-                                                    kernel_size=1,
-                                                    stride=1,
-                                                    padding=0)
-                                       )
+        self.classifier = nn.Sequential(
+            OrderedDict([
+                ("depthwise_5", nn.Conv2d(in_channels=in_channels,
+                                        out_channels=in_channels,
+                                        kernel_size=3,
+                                        stride=1,
+                                        padding=1,
+                                        groups= in_channels)),
+                ("pointwise_10", nn.Conv2d(in_channels=in_channels,
+                                        out_channels= in_channels,
+                                        kernel_size=1,
+                                        stride=1,
+                                        padding=0)),
+                ("depthwise_6", nn.Conv2d(in_channels= in_channels,
+                                        out_channels= in_channels,
+                                        kernel_size= 3,
+                                        stride=1,
+                                        padding=1,
+                                        groups= in_channels)),
+                ("pointwise_11", nn.Conv2d(in_channels= in_channels,
+                                        out_channels= in_channels,
+                                        kernel_size= 1,
+                                        stride= 1,
+                                        padding=0)),
+                ("pointwise_12", nn.Conv2d(in_channels= in_channels,
+                                        out_channels= out_channels,
+                                        kernel_size=1,
+                                        stride=1,
+                                        padding=0)),
+                ("dropout_1", nn.Dropout2d(p=dropout,
+                                         inplace=True))
+            ])
+        )
 
     def forward(self,
                 x:torch.Tensor) -> torch.Tensor:
