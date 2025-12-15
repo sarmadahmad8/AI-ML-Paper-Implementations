@@ -281,3 +281,23 @@ def evaluate_model_binaryclass(model: torch.nn.Module,
     print(f"Evaluation Loss: {val_loss:.5f} | Evaluation Accuracy: {val_acc:.2f}%")
 
     return results
+
+def set_seeds(seed: int = 42):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+
+def tune_parameters(model: torch.nn.Module):
+    decay_params, no_decay_params = [], []
+    for name, param in model.named_parameters():
+        if not param.requires_grad:
+            continue
+        if "bn" in name:
+            param.requires_grad=False
+
+        if "pointwise" in name:
+            decay_params.append(param)
+
+        else:
+            no_decay_params.append(param)
+
+    return decay_weights, no_decay_weights

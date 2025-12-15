@@ -279,7 +279,7 @@ def train_step_CS_or_ADE(model: torch.nn.Module,
         if scheduler:
             scheduler.step()
 
-    print(y_preds_labels.unique())
+    # print(y_preds_labels.unique())
     train_miou = miou_metric.compute().item()
     train_loss /= len(dataloader)
     train_acc /= len(dataloader)
