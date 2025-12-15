@@ -346,11 +346,11 @@ class FastSCNN(nn.Module):
     def forward(self,
                 x: torch.Tensor) -> torch.Tensor:
 
-        down_sample = self.downsampler(x)
+        downsampler_out = self.downsampler(x)
         # print(down_sample.shape)
-        bottleneck_block = self.bottleneck_3(self.bottleneck_2(self.bottleneck_1(down_sample)))
-        global_feature_extractor = self.ppm(bottleneck_block)
-        feature_fusion = self.relu(self.conv_upsample(down_sample) + self.ffm(global_feature_extractor))
-        classifier = self.classifier(feature_fusion)
-        return classifier
+        bottleneck_block_out = self.bottleneck_3(self.bottleneck_2(self.bottleneck_1(downsampler_out)))
+        global_feature_extractor_out = self.ppm(bottleneck_block_out)
+        feature_fusion_out = self.relu(self.conv_upsample(downsampler_out) + self.ffm(global_feature_extractor_out))
+        classifier_out = self.classifier(feature_fusion_out)
+        return classifier_out
         
