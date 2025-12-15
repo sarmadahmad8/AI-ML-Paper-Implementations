@@ -13,7 +13,8 @@ class Downsample(nn.Module):
                                                     out_channels= 32,
                                                     kernel_size=3,
                                                     stride=2,
-                                                    padding=1)),
+                                                    padding=1,
+                                                    bias=False)),
                  ("bn_1", nn.BatchNorm2d(num_features=32)),
                  ("relu_1", nn.ReLU())
             ])
@@ -30,7 +31,8 @@ class Downsample(nn.Module):
                                                         out_channels=48,
                                                         kernel_size=1,
                                                         stride=1,
-                                                        padding=0)),
+                                                        padding=0,
+                                                        bias=False)),
                         ("bn_2",nn.BatchNorm2d(num_features=48)),
                         ("relu_2",nn.ReLU())
                     ])
@@ -47,7 +49,8 @@ class Downsample(nn.Module):
                                         out_channels=64,
                                         kernel_size=1,
                                         stride=1,
-                                        padding=0)),
+                                        padding=0,
+                                        bias=False)),
                 ("bn_3",nn.BatchNorm2d(num_features=64)),
                 ("relu_3",nn.ReLU())
             ])
@@ -72,7 +75,8 @@ class Bottleneck(nn.Module):
                                         out_channels= in_channels * expansion_factor,
                                         kernel_size=1,
                                         stride=1,
-                                        padding=0)),
+                                        padding=0,
+                                        bias=False)),
                 ("bn_4", nn.BatchNorm2d(num_features= in_channels * expansion_factor)),
                 ("relu_4",nn.ReLU()),
                 ("depthwise_3",nn.Conv2d(in_channels= in_channels * expansion_factor,
@@ -80,7 +84,8 @@ class Bottleneck(nn.Module):
                                         kernel_size=3,
                                         stride= stride,
                                         padding=1,
-                                         groups=in_channels * expansion_factor)),
+                                        groups=in_channels * expansion_factor,
+                                        bias=False)),
                 ("bn_5", nn.BatchNorm2d(num_features= in_channels * expansion_factor)),
                 ("relu_5",nn.ReLU()),
                 ("pointwise_4",nn.Conv2d(in_channels= in_channels * expansion_factor,
@@ -109,7 +114,10 @@ class PyramidPoolingModule(nn.Module):
                                         out_channels= channel_reduction,
                                         kernel_size= 1,
                                         stride=1,
-                                        padding=0)),
+                                        padding=0,
+                                        bias=False)),
+                ("bn_6", nn.BatchNorm2d(num_features=channel_reduction)),
+                ("relu_6", nn.ReLU()),
                 ("upsample_1",nn.Upsample(size=(32, 64),
                                         mode= "bilinear"))
             ])
@@ -121,7 +129,10 @@ class PyramidPoolingModule(nn.Module):
                                         out_channels= channel_reduction,
                                         kernel_size= 1,
                                         stride=1,
-                                        padding=0)),
+                                        padding=0,
+                                        bias=False)),
+                ("bn_7", nn.BatchNorm2d(num_features=channel_reduction)),
+                ("relu_7", nn.ReLU()),
                 ("upsample_2",nn.Upsample(size=(32, 64),
                                         mode= "bilinear"))
             ])
@@ -133,7 +144,10 @@ class PyramidPoolingModule(nn.Module):
                                         out_channels= channel_reduction,
                                         kernel_size= 1,
                                         stride=1,
-                                        padding=0)),
+                                        padding=0,
+                                        bias=False)),
+                ("bn_8", nn.BatchNorm2d(num_features=channel_reduction)),
+                ("relu_8", nn.ReLU()),
                 ("upsample_3",nn.Upsample(size=(32, 64),
                                         mode= "bilinear"))
             ])
@@ -145,16 +159,31 @@ class PyramidPoolingModule(nn.Module):
                                         out_channels= channel_reduction,
                                         kernel_size= 1,
                                         stride=1,
-                                        padding=0)),
+                                        padding=0,
+                                         bias=False)),
+                ("bn_9", nn.BatchNorm2d(num_features=channel_reduction)),
+                ("relu_9", nn.ReLU()),
                 ("upsample_4", nn.Upsample(size=(32, 64),
                                          mode= "bilinear"))
+            ])
+        )
+        self.pointwise_projection = nn.Sequential(
+            OrderedDict([
+                ("pointwise_9",nn.Conv2d(in_channels= in_channels * 2,
+                                          out_channels= in_channels,
+                                          kernel_size=1,
+                                          stride=1,
+                                          padding=0,
+                                          bias= False)),
+                ("bn_10", nn.BatchNorm2d(num_features=in_channels)),
+                ("relu_10", nn.ReLU())
             ])
         )
         
 
     def forward(self,
                 x: torch.Tensor) -> torch.Tensor:
-
+        # print(x.shape)
         p1 = self.pyramid_1(x)
         # print(p1.shape)
         p2 = self.pyramid_2(x)
@@ -163,10 +192,11 @@ class PyramidPoolingModule(nn.Module):
         # print(p3.shape)
         p4 = self.pyramid_4(x)
         # print(p4.shape)
-        ppm = torch.cat((p1, p2, p3, p4), dim=1)
+        ppm = torch.cat((x, p1, p2, p3, p4), dim=1)
         # print(ppm.shape)
-        
-        return ppm
+        orig_projection = self.pointwise_projection(ppm)
+        # print(orig_projection.shape)
+        return orig_projection
 
 class FeatureFusionModule(nn.Module):
     def __init__(self,
@@ -184,10 +214,11 @@ class FeatureFusionModule(nn.Module):
                                         stride=1,
                                         padding=4,
                                        dilation= 4,
-                                        groups= in_channels)),
-                ("bn_6", nn.BatchNorm2d(num_features=in_channels)),
-                ("relu_6", nn.ReLU()),
-                ("pointwise_9", nn.Conv2d(in_channels= in_channels,
+                                        groups= in_channels,
+                                         bias=False)),
+                ("bn_11", nn.BatchNorm2d(num_features=in_channels)),
+                ("relu_11", nn.ReLU()),
+                ("pointwise_10", nn.Conv2d(in_channels= in_channels,
                                         out_channels= in_channels,
                                         kernel_size=1,
                                         stride=1,
@@ -215,7 +246,7 @@ class Classifier(nn.Module):
                                         stride=1,
                                         padding=1,
                                         groups= in_channels)),
-                ("pointwise_10", nn.Conv2d(in_channels=in_channels,
+                ("pointwise_11", nn.Conv2d(in_channels=in_channels,
                                         out_channels= in_channels,
                                         kernel_size=1,
                                         stride=1,
@@ -226,12 +257,12 @@ class Classifier(nn.Module):
                                         stride=1,
                                         padding=1,
                                         groups= in_channels)),
-                ("pointwise_11", nn.Conv2d(in_channels= in_channels,
+                ("pointwise_12", nn.Conv2d(in_channels= in_channels,
                                         out_channels= in_channels,
                                         kernel_size= 1,
                                         stride= 1,
                                         padding=0)),
-                ("pointwise_12", nn.Conv2d(in_channels= in_channels,
+                ("pointwise_13", nn.Conv2d(in_channels= in_channels,
                                         out_channels= out_channels,
                                         kernel_size=1,
                                         stride=1,
@@ -286,7 +317,7 @@ class FastSCNN(nn.Module):
         self.bottleneck_3 = nn.Sequential(Bottleneck(in_channels= 96,
                                                     out_channels= 128,
                                                      expansion_factor= expansion_factor,
-                                                    stride= 2),
+                                                    stride= 1),
                                           Bottleneck(in_channels= 128,
                                                     out_channels= 128,
                                                      expansion_factor= expansion_factor,

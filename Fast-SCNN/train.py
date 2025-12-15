@@ -9,7 +9,7 @@ from download_data import download_data
 from data_setup import choose_dataloader
 from model import FastSCNN
 from engine import train_CS_or_ADE
-from utils import load_checkpoint, save_checkpoint, evaluate_model_multiclass
+from utils import load_checkpoint, save_checkpoint, evaluate_model_multiclass, set_seeds, tune_parameters
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--dataset_name", type= str, help="Provide name of dataset you want to load (e.g 'Cityscape', 'ADE20K'.")
@@ -79,18 +79,13 @@ EPOCHS = args.epochs
 BATCHES = len(train_dataloader)
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
+set_seeds()
+
 fast_scnn = FastSCNN(in_channels=3,
                      out_channels=num_classes,
                      expansion_factor= 6)
 
-decay_params, no_decay_params = [], []
-for name, param in fast_scnn.named_parameters():
-    if not param.requires_grad:
-        continue
-    if "pointwise" in name:
-        decay_params.append(param)
-    else:
-        no_decay_params.append(param)
+decay_params, no_decay_params = tune_parameters(model = fast_scnn)
 
 loss_fn = nn.CrossEntropyLoss(ignore_index=-1,
                               weight= weights.to(device))
