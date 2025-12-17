@@ -262,7 +262,7 @@ class Discriminator(nn.Module):
         # print(x.shape)
         x = self.downsample_3(x)
         # print(x.shape)
-        disl_out = x
+        disl_out = x.view(-1, 256 * 8 * 8)
         x = self.fully_connected_1(x)
         # print(x.shape)
         x = self.fully_connected_2(x)
