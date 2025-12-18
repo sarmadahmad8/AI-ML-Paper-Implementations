@@ -278,12 +278,12 @@ class VAEGAN(nn.Module):
         super().__init__()
 
         self.encoder = Encoder(in_channels= in_channels,
-                               latent_dim= latent_dim).apply(init_weights)
+                               latent_dim= latent_dim) # .apply(init_weights)
 
         self.decoder = Decoder(latent_dim= latent_dim,
-                               out_channels= out_channels).apply(init_weights)
+                               out_channels= out_channels) # .apply(init_weights)
 
-        self.discriminator = Discriminator(in_channels= in_channels).apply(init_weights)
+        self.discriminator = Discriminator(in_channels= in_channels) # .apply(init_weights)
 
     def forward(self,
                 x: torch.Tensor) -> torch.Tensor:
