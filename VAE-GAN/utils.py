@@ -55,6 +55,8 @@ def plot_losses(results: Dict[str, List[float]],
                 save_name: str = None):
 
     image_path = Path("images")
+    image_path.mkdir(parents=True,
+                     exist_ok=True)
     
     epochs = range(0, len(results["encoder_loss"]))
     
