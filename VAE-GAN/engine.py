@@ -238,26 +238,19 @@ def test_step(model: torch.nn.Module,
 def train(model: torch.nn.Module,
           train_dataloader: torch.utils.data.DataLoader,
           test_dataloader: torch.utils.data.DataLoader,
-          lr: float = 1e-4,
+          discriminator_optimizer: torch.optim.Optimizer,
+          encoder_optimizer: torch.optim.Optimizer,
+          decoder_optimizer: torch.optim.Optimizer,
           epochs: int = 25,
           gamma: float = 5.0,
-          alpha: float = 0.1,
           device: torch.device = "cuda"):
 
-    lr = lr
     epochs = epochs
     gamma = gamma
     
     model.to(device)
     
     losses = Losses()
-    
-    encoder_optimizer = torch.optim.RMSprop(model.encoder.parameters(),
-                                        lr = lr)
-    decoder_optimizer = torch.optim.RMSprop(model.decoder.parameters(),
-                                        lr = lr)
-    discriminator_optimizer = torch.optim.RMSprop(model.discriminator.parameters(),
-                                        lr= lr * alpha)
     
     train_batch_losses = {"encoder_loss": [],
                     "decoder_loss": [],
