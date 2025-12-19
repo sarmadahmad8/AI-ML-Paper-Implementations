@@ -36,13 +36,21 @@ model = VAEGAN(in_channels=3,
                latent_dim=128,
                out_channels=3).to(device= device)
 
+discriminator_optimizer = torch.optim.RMSprop(model.discriminator.parameters(), 
+                                              lr = LR * ALPHA)
+encoder_optimizer = torch.optim.RMSprop(model.encoder.parameters(),
+                                        lr = LR)
+decoder_optimizer = torch.optim.RMSprop(model.decoder.parameters(),
+                                        lr = LR)
+
 train_results, test_results = train(model = model,
                                     train_dataloader= train_dataloader,
                                     test_dataloader= test_dataloader,
-                                    lr = LR,
+                                    discriminator_optimizer= discriminator_optimizer,
+                                    decoder_optimizer= decoder_optimizer,
+                                    encoder_optimizer= encoder_optimizer
                                     epochs = EPOCHS,
                                     gamma = GAMMA,
-                                    alpha= ALPHA,
                                     device = device)
 
 plot_losses(results= train_results)
