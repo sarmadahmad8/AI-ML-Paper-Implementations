@@ -5,6 +5,10 @@ from torchmetrics.functional import peak_signal_noise_ratio, structural_similari
 from typing import Dict, List
 import matplotlib.pyplot as plt
 import random
+from kornia.color.ycbcr import RgbToYcbcr, YcbcrToRgb
+
+ycbcr = RgbToYcbcr()
+rgb = YcbcrToRgb()
 
 def save_checkpoint(model: torch.nn.Module,
                     checkpoint_name: str,
@@ -61,9 +65,12 @@ def evaluate_model(model: torch.nn.Module,
             X, y = X.to(device), y.to(device)
             y_preds = model(X)
             loss = loss_fn(y_preds, y)
-            psnr = peak_signal_noise_ratio(y_preds, y)
-            ssim = structural_similarity_index_measure(y_preds, y)
-
+            
+            y_preds = ycbcr(y_preds)
+            y = ycbcr(y)
+            psnr = peak_signal_noise_ratio(y_preds[:, :1, :, :], y[:, :1, :, :])
+            ssim = structural_similarity_index_measure(y_preds[:, :1, :, :], y[:, :1, :, :])
+            
             val_loss += loss
             val_psnr += psnr
             val_ssim += ssim
@@ -110,9 +117,14 @@ def plot_reconstructed_images(model: torch.nn.Module,
             X, y = val_dataset[idx]
             y_pred = model(X.unsqueeze(dim=0))
     
-            psnr = peak_signal_noise_ratio(y_pred, y.unsqueeze(dim=0))
-            ssim = structural_similarity_index_measure(y_pred, y.unsqueeze(dim=0))
+            y_pred = ycbcr(y_pred)
+            y = ycbcr(y.unsqueeze(dim=0))
+            psnr = peak_signal_noise_ratio(y_pred[:, :1, :, :], y[:, :1, :, :])
+            ssim = structural_similarity_index_measure(y_pred[:, :1, :, :], y[:, :1, :, :])
 
+            y_pred = rgb(y_pred)
+            y = rgb(y)
+            
             y = y.squeeze()
             y = y.clamp(min=0.0, max=1.0)
             y_pred = y_pred.squeeze()
