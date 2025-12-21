@@ -1,7 +1,9 @@
 from torchmetrics.functional import peak_signal_noise_ratio, structural_similarity_index_measure
 from tqdm.auto import tqdm
 import torch
+from kornia.color.ycbcr import RgbToYcbcr
 
+ycbcr = RgbToYcbcr()
 def train_step(model: torch.nn.Module,
                loss_fn: torch.nn.Module,
                optimizer: torch.optim.Optimizer,
@@ -16,10 +18,12 @@ def train_step(model: torch.nn.Module,
         
         X, y = X.to(device), y.to(device)
         y_preds = model(X)
-        
         loss = loss_fn(y_preds, y)
-        psnr = peak_signal_noise_ratio(y_preds, y)
-        ssim = structural_similarity_index_measure(y_preds, y)
+        
+        y_preds = ycbcr(y_preds)
+        y = ycbcr(y)
+        psnr = peak_signal_noise_ratio(y_preds[:, :1, :, :], y[:, :1, :, :])
+        ssim = structural_similarity_index_measure(y_preds[:, :1, :, :], y[:, :1, :, :])
         
         train_loss += loss.item()
         train_psnr += psnr.item()
@@ -51,10 +55,12 @@ def test_step(model: torch.nn.Module,
             
             X, y = X.to(device), y.to(device)
             y_preds = model(X)
-            
             loss = loss_fn(y_preds, y)
-            psnr =peak_signal_noise_ratio(y_preds, y)
-            ssim = structural_similarity_index_measure(y_preds, y)
+
+            y_preds = ycbcr(y_preds)
+            y = ycbcr(y)
+            psnr = peak_signal_noise_ratio(y_preds[:, :1, :, :], y[:, :1, :, :])
+            ssim = structural_similarity_index_measure(y_preds[:, :1, :, :], y[:, :1, :, :])
             
             test_loss += loss.item()
             test_psnr += psnr.item()
