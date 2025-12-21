@@ -12,7 +12,7 @@ def train_step(model: torch.nn.Module,
     train_loss, train_psnr, train_ssim = 0.0, 0.0, 0.0
 
     model.train()
-    for batch, (X, y) in enumerate(train_dataloader):
+    for batch, (X, y) in tqdm(enumerate(train_dataloader)):
         
         X, y = X.to(device), y.to(device)
         y_preds = model(X)
@@ -47,7 +47,7 @@ def test_step(model: torch.nn.Module,
 
     model.eval()
     with torch.no_grad():
-        for batch, (X, y) in enumerate(test_dataloader):
+        for batch, (X, y) in tqdm(enumerate(test_dataloader)):
             
             X, y = X.to(device), y.to(device)
             y_preds = model(X)
