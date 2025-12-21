@@ -134,17 +134,18 @@ class ResidualInResidual(nn.Module):
 
 class UpscaleAndReconstruct(nn.Module):
 
-    def __init__(self):
+    def __init__(self,
+                scale: int = 2):
 
         super().__init__()
 
         self.upsampler = nn.Sequential(nn.Conv2d(in_channels=64,
-                                                 out_channels=64 * 2 * 2,
+                                                 out_channels=64 * scale * scale,
                                                  kernel_size=3,
                                                  stride=1,
                                                  padding=1,
                                                  padding_mode="zeros"),
-                                       nn.PixelShuffle(upscale_factor=2)
+                                       nn.PixelShuffle(upscale_factor=scale)
                                       )
 
         self.recontruct = nn.Conv2d(in_channels=64,
@@ -166,7 +167,8 @@ class ResidualChannelAttentionNetwork(nn.Module):
 
     def __init__(self,
                  num_rg: int,
-                 num_rcab: int):
+                 num_rcab: int,
+                 scale: int):
 
         super().__init__()
 
@@ -175,7 +177,7 @@ class ResidualChannelAttentionNetwork(nn.Module):
         self.residual_in_residual = ResidualInResidual(num_rg= num_rg,
                                                        num_rcab= num_rcab)
 
-        self.upsample_and_reconstruct = UpscaleAndReconstruct()
+        self.upsample_and_reconstruct = UpscaleAndReconstruct(scale= scale)
 
     def forward(self,
                 I_l_r: torch.Tensor) -> torch.Tensor:
