@@ -41,3 +41,16 @@ def load_checkpoint(model: torch.nn.Module,
         optimizer.load_state_dict(torch.load(optimizer_path / checkpoint_name))
     if scheduler:
         scheduler.load_state_dict(torch.load(scheduler_path / checkpoint_name))
+
+def plot_metrics(results: Dict[str, List[float]]):
+
+    epochs = range(len(results["train_loss"]))
+    plt.figure(figsize= (12, 30))
+    for i, (name, metric) in enumerate(results.items()):
+        plt.subplot(len(results), 1, i+1)
+        plt.plot(epochs, metric)
+        plt.xlabel("epochs")
+        plt.ylabel(name.split("_")[1])
+        plt.title(f"{name.split('_')[0]} {name.split('_')[1]} per epoch")
+
+    plt.show()
