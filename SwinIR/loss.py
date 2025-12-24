@@ -108,7 +108,7 @@ class Discriminator(nn.Module):
             OrderedDict([
                 ("flatten", nn.Flatten(start_dim=1,
                                        end_dim=3)),
-                ("linear", nn.Linear(in_features=8 * 8 * 256,
+                ("linear", nn.Linear(in_features=12 * 12 * 256,
                                      out_features=512)),
                 ("bn", nn.BatchNorm1d(num_features=512)),
                 ("relu", nn.ReLU())
@@ -148,23 +148,23 @@ class L1withPerceptualandGANLoss(nn.Module):
         self.l1_weight = l1_weight
         
         self.perceptual_loss = PerceptualLoss()
-        self.discriminator = Discriminator(in_channels= 3)
         self.l1_loss = nn.L1Loss()
         self.gan_loss = nn.BCELoss()
 
         self.ones_label = torch.ones([batch_size, 1], 
-                                     requires_grad=False)
+                                     requires_grad=False).to("cuda")
 
         self.zeros_label = torch.zeros([batch_size, 1],
-                                       requires_grad=False)
+                                       requires_grad=False).to("cuda")
 
     def forward(self,
                 preds: torch.Tensor,
-                targets: torch.Tensor):
+                targets: torch.Tensor,
+                discriminator: torch.nn.Module):
 
         perceptual_loss_output = self.perceptual_loss(preds, targets)
         l1_loss_output = self.l1_loss(preds, targets)
-        gan_loss_output = self.gan_loss(preds, self.zeros_label) + self.gan_loss(targets, self.ones_label)
+        gan_loss_output = self.gan_loss(discriminator(preds), self.zeros_label) + self.gan_loss(discriminator(targets), self.ones_label)
 
         total_loss = self.l1_weight * l1_loss_output + self.perceptual_weight * perceptual_loss_output + self.gan_weight * gan_loss_output
 
