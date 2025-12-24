@@ -107,7 +107,7 @@ def plot_reconstructed_images(model: torch.nn.Module,
 
     rand_idx = random.sample(range(0, len(val_dataset)), k=5)
 
-    plt.figure(figsize=(8, 20))
+    plt.figure(figsize=(16, 20))
     i = 0
     
     model.to(device)
@@ -130,17 +130,23 @@ def plot_reconstructed_images(model: torch.nn.Module,
             y = y.clamp(min=0.0, max=1.0)
             y_pred = y_pred.squeeze()
             y_pred = y_pred.clamp(min=0.0, max=1.0)
-            
+
             i += 1
-            plt.subplot(samples, 2, i)
-            plt.imshow(y.permute(1, 2, 0))
-            plt.title(f"Original, Size: {y.shape}")
+            plt.subplot(samples, 3, i)
+            plt.imshow(X.permute(1, 2, 0))
+            plt.title(f"LR Original, Size: {X.shape}")
             plt.axis(False)
     
             i += 1
-            plt.subplot(samples, 2, i)
+            plt.subplot(samples, 3, i)
             plt.imshow(y_pred.permute(1, 2, 0))
             plt.title(f"Reconstructed, PSNR: {psnr:.5f} | SSIM: {ssim:.5f}")
+            plt.axis(False)
+
+            i += 1
+            plt.subplot(samples, 3, i)
+            plt.imshow(y.permute(1, 2, 0))
+            plt.title(f"HR Original, Size: {y.shape}")
             plt.axis(False)
 
     
