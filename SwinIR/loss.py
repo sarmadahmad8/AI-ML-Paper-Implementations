@@ -169,3 +169,23 @@ class L1withPerceptualandGANLoss(nn.Module):
         total_loss = self.l1_weight * l1_loss_output + self.perceptual_weight * perceptual_loss_output + self.gan_weight * gan_loss_output
 
         return total_loss
+
+class CharbonnierLoss(nn.Module):
+
+    def __init__(self,
+                 eps: float = 1e-3):
+        
+        super().__init__()
+
+        self.eps = eps
+
+    def forward(self,
+                preds: torch.Tensor,
+                targets: torch.Tensor):
+
+        difference_square = (preds - targets) ** 2
+        eps_square = self.eps ** 2
+
+        loss = torch.sqrt(difference_square + eps_square)
+
+        return loss.mean()
