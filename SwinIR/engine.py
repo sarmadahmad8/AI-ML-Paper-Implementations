@@ -1,4 +1,4 @@
-2from torchmetrics.functional import peak_signal_noise_ratio, structural_similarity_index_measure
+from torchmetrics.functional import peak_signal_noise_ratio, structural_similarity_index_measure
 from tqdm.auto import tqdm
 import torch
 from kornia.color.ycbcr import RgbToYcbcr
@@ -9,7 +9,10 @@ def train_step(model: torch.nn.Module,
                optimizer: torch.optim.Optimizer,
                scheduler: torch.optim.lr_scheduler,
                train_dataloader: torch.utils.data.DataLoader,
-               device: torch.device):
+               device: torch.device,
+               discriminator: torch.nn.Module = None,
+               disc_optimizer: torch.optim.Optimizer = None,
+               disc_scheduler: torch.optim.lr_scheduler = None):
 
     train_loss, train_psnr, train_ssim = 0.0, 0.0, 0.0
 
@@ -18,7 +21,12 @@ def train_step(model: torch.nn.Module,
         
         X, y = X.to(device), y.to(device)
         y_preds = model(X)
-        loss = loss_fn(y_preds, y)
+        if not discriminator:
+            loss = loss_fn(y_preds, y)
+        else:
+            loss = loss_fn(preds = y_preds,
+                           targets = y,
+                           discriminator = discriminator)
         
         y_preds = ycbcr(y_preds)
         y = ycbcr(y)
@@ -30,9 +38,15 @@ def train_step(model: torch.nn.Module,
         train_ssim += ssim.item()
         
         optimizer.zero_grad()
+        if discriminator:
+            disc_optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        if discriminator:
+            disc_optimizer.step()
         scheduler.step()
+        if discriminator:
+            disc_scheduler.step()
 
     train_loss /= len(train_dataloader)
     train_psnr /= len(train_dataloader)
@@ -45,7 +59,8 @@ def train_step(model: torch.nn.Module,
 def test_step(model: torch.nn.Module,
                loss_fn: torch.nn.Module,
                test_dataloader: torch.utils.data.DataLoader,
-               device: torch.device):
+               device: torch.device,
+               discriminator: torch.nn.Module = None):
 
     test_loss, test_psnr, test_ssim = 0.0, 0.0, 0.0
 
@@ -55,7 +70,12 @@ def test_step(model: torch.nn.Module,
             
             X, y = X.to(device), y.to(device)
             y_preds = model(X)
-            loss = loss_fn(y_preds, y)
+            if not discriminator:
+                loss = loss_fn(y_preds, y)
+            else:
+                loss = loss_fn(preds = y_preds,
+                               targets = y,
+                               discriminator = discriminator)
 
             y_preds = ycbcr(y_preds)
             y = ycbcr(y)
@@ -81,7 +101,10 @@ def train(model: torch.nn.Module,
            train_dataloader: torch.utils.data.DataLoader,
            test_dataloader: torch.utils.data.DataLoader,
            device: torch.device,
-           epochs: int):
+           epochs: int,
+           discriminator: torch.nn.Module = None,
+           disc_optimizer: torch.optim.Optimizer = None,
+           disc_scheduler: torch.optim.lr_scheduler = None):
 
     results = {"train_loss": [],
                "train_psnr": [],
@@ -98,7 +121,10 @@ def train(model: torch.nn.Module,
                                                      loss_fn= loss_fn,
                                                      optimizer= optimizer,
                                                      scheduler= scheduler,
-                                                     device= device)
+                                                     device= device,
+                                                     discriminator = discriminator,
+                                                     disc_optimizer= disc_optimizer,
+                                                     disc_scheduler = disc_scheduler)
         results["train_loss"].append(train_loss)
         results["train_psnr"].append(train_psnr)
         results["train_ssim"].append(train_ssim)
@@ -106,7 +132,8 @@ def train(model: torch.nn.Module,
         test_loss, test_psnr, test_ssim = test_step(model= model,
                                                     test_dataloader= test_dataloader,
                                                     loss_fn= loss_fn,
-                                                    device= device)
+                                                    device= device,
+                                                    discriminator = discriminator)
 
         results["test_loss"].append(test_loss)
         results["test_psnr"].append(test_psnr)
