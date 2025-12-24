@@ -54,7 +54,8 @@ def load_checkpoint(model: torch.nn.Module,
 def evaluate_model(model: torch.nn.Module,
                    loss_fn: torch.nn.Module,
                    val_dataloader: torch.utils.data.DataLoader,
-                   device: torch.device = "cuda"):
+                   device: torch.device = "cuda",
+                   crop_border: int = None):
 
     val_loss, val_psnr, val_ssim = 0.0, 0.0, 0.0
 
@@ -68,8 +69,8 @@ def evaluate_model(model: torch.nn.Module,
             
             y_preds = ycbcr(y_preds)
             y = ycbcr(y)
-            psnr = peak_signal_noise_ratio(y_preds[:, :1, :, :], y[:, :1, :, :])
-            ssim = structural_similarity_index_measure(y_preds[:, :1, :, :], y[:, :1, :, :])
+            psnr = peak_signal_noise_ratio(y_preds[:, :1, crop_border: -crop_border, crop_border: -crop_border], y[:, :1, crop_border: -crop_border, crop_border: -crop_border])
+            ssim = structural_similarity_index_measure(y_preds[:, :1, crop_border: -crop_border, crop_border: -crop_border], y[:, :1, crop_border: -crop_border, crop_border: -crop_border])
             
             val_loss += loss
             val_psnr += psnr
