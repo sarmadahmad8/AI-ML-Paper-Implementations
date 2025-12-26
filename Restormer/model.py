@@ -11,7 +11,8 @@ class GatedDConvFeedForwardNetwork(nn.Module):
 
         super().__init__()
 
-        self.layer_norm = nn.LayerNorm(normalized_shape= in_dimensions)
+        self.layer_norm = nn.LayerNorm(normalized_shape= in_dimensions,
+                                       bias= False)
 
         self.up_pconv = nn.Conv2d(in_channels= in_dimensions,
                                out_channels= int(in_dimensions * gamma) * 2,
@@ -26,7 +27,7 @@ class GatedDConvFeedForwardNetwork(nn.Module):
                                stride=1,
                                padding=1,
                                padding_mode="zeros",
-                               groups= int(in_dimensions * gamma),
+                               groups= int(in_dimensions * gamma) * 2,
                                bias = False)
 
         self.gelu = nn.GELU()
@@ -65,7 +66,8 @@ class MultiDConvHeadTransposedAttention(nn.Module):
         self.heads = heads
         self.heads_dim = in_dimensions // heads
 
-        self.layer_norm = nn.LayerNorm(normalized_shape= in_dimensions)
+        self.layer_norm = nn.LayerNorm(normalized_shape= in_dimensions,
+                                       bias= False)
 
         self.pconv = nn.Conv2d(in_channels= in_dimensions,
                               out_channels= in_dimensions * 3,
@@ -80,7 +82,7 @@ class MultiDConvHeadTransposedAttention(nn.Module):
                                stride=1,
                                padding=1,
                                padding_mode="zeros",
-                               groups=in_dimensions,
+                               groups=in_dimensions * 3,
                                bias= False)
 
         self.pconv_out = nn.Conv2d(in_channels= in_dimensions,
@@ -301,43 +303,43 @@ class Restormer(nn.Module):
         x_in = x
         x = self.shallow_features(x)
         residual_1 = self.transformer_block_down_1(x)
-        print(residual_1.shape)
+        # print(residual_1.shape)
         x = self.downsample_1(residual_1)
-        print(x.shape)
+        # print(x.shape)
         residual_2 = self.transformer_block_down_2(x)
-        print(residual_2.shape)
+        # print(residual_2.shape)
         x = self.downsample_2(residual_2)
-        print(x.shape)
+        # print(x.shape)
         residual_3 = self.transformer_block_down_3(x)
-        print(residual_3.shape)
+        # print(residual_3.shape)
         x = self.downsample_3(residual_3)
-        print(x.shape)
+        # print(x.shape)
         x = self.transformer_block_4(x)
-        print(x.shape)
+        # print(x.shape)
         x = self.upsample_1(x)
-        print(x.shape)
+        # print(x.shape)
         concat_1 = torch.cat((x, residual_3), dim= 1)
         x = self.concat_reduction_1(concat_1)
-        print(x.shape)
+        # print(x.shape)
         x = self.transformer_block_up_3(x)
-        print(x.shape)
+        # print(x.shape)
         x = self.upsample_2(x)
-        print(x.shape)
+        # print(x.shape)
         concat_2 = torch.cat((x, residual_2), dim= 1)
         x = self.concat_reduction_2(concat_2)
-        print(x.shape)
+        # print(x.shape)
         x = self.transformer_block_up_2(x)
-        print(x.shape)
+        # print(x.shape)
         x = self.upsample_3(x)
-        print(x.shape)
+        # print(x.shape)
         concat_3 = torch.cat((x, residual_1), dim= 1)
-        print(concat_3.shape)
+        # print(concat_3.shape)
         x = self.transformer_block_up_1(concat_3)
-        print(x.shape)
+        # print(x.shape)
         x = self.transformer_block_refinement(x)
-        print(x.shape)
+        # print(x.shape)
         x = self.residual_reconstruction(x)
-        print(x.shape)
+        # print(x.shape)
         i_tilda = x + x_in
 
         return i_tilda
