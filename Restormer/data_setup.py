@@ -57,7 +57,7 @@ class GoPro(Dataset):
                     blur_img: Image.Image,
                     sharp_img: Image.Image):
 
-        height, width = blur_img.size
+        width, height = blur_img.size
 
         left = random.randint(0, width - self.patch_size)
         top = random.randint(0, height - self.patch_size)
@@ -85,7 +85,9 @@ class GoPro(Dataset):
     def __getitem__(self,
                     index: int):
 
-        blur_img, sharp_img = self.load_image_pairs(index= index)
+        img_index = index // self.crops_per_image
+
+        blur_img, sharp_img = self.load_image_pairs(index= img_index)
 
         if self.augment == True:
             
