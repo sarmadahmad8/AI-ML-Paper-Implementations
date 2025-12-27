@@ -12,7 +12,7 @@ class GatedDConvFeedForwardNetwork(nn.Module):
         super().__init__()
 
         self.layer_norm = nn.LayerNorm(normalized_shape= in_dimensions,
-                                       bias= False)
+                                       elementwise_affine= True)
 
         self.up_pconv = nn.Conv2d(in_channels= in_dimensions,
                                out_channels= int(in_dimensions * gamma) * 2,
@@ -66,8 +66,8 @@ class MultiDConvHeadTransposedAttention(nn.Module):
         self.heads = heads
         self.heads_dim = in_dimensions // heads
 
-        self.layer_norm = nn.LayerNorm(normalized_shape= in_dimensions,
-                                       bias= False)
+        self.layer_norm = nn.LayerNorm(normalized_shape= in_dimensions, 
+                                       elementwise_affine= True)
 
         self.pconv = nn.Conv2d(in_channels= in_dimensions,
                               out_channels= in_dimensions * 3,
@@ -94,7 +94,7 @@ class MultiDConvHeadTransposedAttention(nn.Module):
 
         self.softmax = nn.Softmax(dim= -1)
 
-        self.alpha = nn.Parameter(torch.randn(1, dtype=torch.float32),
+        self.alpha = nn.Parameter(torch.ones(heads, 1, 1),
                                  requires_grad=True)
 
     def forward(self,
@@ -115,7 +115,7 @@ class MultiDConvHeadTransposedAttention(nn.Module):
                       qkv)
 
         q_k_dot_product = einsum('B h N i, B h N j -> B h i j',
-                                 q, k) / self.alpha
+                                 q, k) * self.alpha
 
         score = self.softmax(q_k_dot_product)
 
@@ -127,7 +127,7 @@ class MultiDConvHeadTransposedAttention(nn.Module):
 
         conv_out = self.pconv_out(attn)
 
-        x_tilda = conv_out + x_in
+        x_tilda = torch.add(conv_out, x_in)
 
         return x_tilda
 
@@ -340,6 +340,6 @@ class Restormer(nn.Module):
         # print(x.shape)
         x = self.residual_reconstruction(x)
         # print(x.shape)
-        i_tilda = x + x_in
+        i_tilda = torch.add(x, x_in)
 
         return i_tilda
