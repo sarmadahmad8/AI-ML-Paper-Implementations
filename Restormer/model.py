@@ -3,11 +3,33 @@ from torch import nn, einsum
 from einops import rearrange
 from typing import Tuple
 
+class DropPath(nn.Module):
+    def __init__(self,
+                 drop_prob: float = 0.4):
+
+        super().__init__()
+
+        self.drop_prob = drop_prob
+
+    def forward(self,
+                x: torch.Tensor) -> torch.Tensor:
+
+        if self.drop_prob == 0.0 or not self.training:
+            return x
+
+        keep_prob = 1 - self.drop_prob
+        shape = (x.shape[0], 1, 1, 1)
+        random_tensor = x.new_empty(shape).bernoulli_(keep_prob)
+        x = x / keep_prob * random_tensor
+        return x
+        
+
 class GatedDConvFeedForwardNetwork(nn.Module):
 
     def __init__(self,
                  in_dimensions: int,
-                 gamma: float):
+                 gamma: float,
+                 dropout: float):
 
         super().__init__()
 
@@ -39,6 +61,9 @@ class GatedDConvFeedForwardNetwork(nn.Module):
                                     padding=0, 
                                     bias = False)
 
+        self.dropout = nn.Dropout(p=dropout,
+                                  inplace=True)
+
     def forward(self,
                 x: torch.Tensor) -> torch.Tensor:
 
@@ -50,7 +75,9 @@ class GatedDConvFeedForwardNetwork(nn.Module):
         x_2 = self.gelu(x_2)
         x_mul = torch.mul(input= x_1,
                           other= x_2)
+        x_mul = self.dropout(x_mul)
         x = self.down_pconv(x_mul)
+        x = self.dropout(x)
         x_tilda = torch.add(input=x,
                             other=x_in)
         
@@ -60,7 +87,8 @@ class MultiDConvHeadTransposedAttention(nn.Module):
 
     def __init__(self,
                  in_dimensions: int,
-                 heads: int):
+                 heads: int,
+                 dropout: float):
 
         super().__init__()
         self.heads = heads
@@ -97,6 +125,9 @@ class MultiDConvHeadTransposedAttention(nn.Module):
         self.alpha = nn.Parameter(torch.ones(heads, 1, 1),
                                  requires_grad=True)
 
+        self.dropout = nn.Dropout(p=dropout,
+                                  inplace=True)
+
     def forward(self,
                 x: torch.Tensor) -> torch.Tensor:
 
@@ -127,6 +158,8 @@ class MultiDConvHeadTransposedAttention(nn.Module):
 
         conv_out = self.pconv_out(attn)
 
+        conv_out = self.dropout(conv_out)
+
         x_tilda = torch.add(conv_out, x_in)
 
         return x_tilda
@@ -136,15 +169,18 @@ class TransformerLayer(nn.Module):
     def __init__(self,
                  in_dimensions: int,
                  gamma: float,
-                 heads: int):
+                 heads: int,
+                 dropout: float):
 
         super().__init__()
 
         self.mdta = MultiDConvHeadTransposedAttention(in_dimensions= in_dimensions,
-                                                      heads= heads)
+                                                      heads= heads,
+                                                      dropout = dropout)
 
         self.gdfn = GatedDConvFeedForwardNetwork(in_dimensions= in_dimensions,
-                                                 gamma= gamma)
+                                                 gamma= gamma,
+                                                 dropout = dropout)
 
     def forward(self,
                 x: torch.Tensor) -> torch.Tensor:
@@ -157,13 +193,15 @@ class TransformerBlock(nn.Module):
                  in_dimensions: int,
                  gamma: float,
                  heads: int,
-                 layers: int):
+                 layers: int,
+                 dropout: float = 0.1):
 
         super().__init__()
 
         self.transformer_block = nn.Sequential(*[TransformerLayer(in_dimensions=in_dimensions,
                                                                   gamma= gamma,
-                                                                  heads= heads) for _ in range(layers)])
+                                                                  heads= heads,
+                                                                  dropout = dropout) for _ in range(layers)])
 
     def forward(self,
                 x: torch.Tensor) -> torch.Tensor:
@@ -178,7 +216,9 @@ class Restormer(nn.Module):
                  in_dimensions: Tuple[int, int, int, int],
                  heads: Tuple[int, int, int, int],
                  t_layers: Tuple[int, int, int, int],
-                 gamma: float):
+                 gamma: float,
+                 dropout: float = 0.1,
+                 drop_path_prob: float = 0.5):
 
         super().__init__()
 
@@ -218,37 +258,45 @@ class Restormer(nn.Module):
         self.transformer_block_down_1 = TransformerBlock(in_dimensions= in_dimensions[0],
                                                         layers= t_layers[0],
                                                         heads=heads[0],
-                                                        gamma = gamma)
+                                                        gamma = gamma,
+                                                        dropout = dropout)
         self.transformer_block_down_2 = TransformerBlock(in_dimensions= in_dimensions[1],
                                                         layers= t_layers[1],
                                                         heads=heads[1],
-                                                        gamma = gamma)
+                                                        gamma = gamma,
+                                                        dropout = dropout)
         self.transformer_block_down_3 = TransformerBlock(in_dimensions= in_dimensions[2],
                                                         layers= t_layers[2],
                                                         heads=heads[2],
-                                                        gamma = gamma)
+                                                        gamma = gamma,
+                                                        dropout = dropout)
         self.transformer_block_4 = TransformerBlock(in_dimensions= in_dimensions[3],
                                                         layers= t_layers[3],
                                                         heads=heads[3],
-                                                        gamma = gamma)
+                                                        gamma = gamma,
+                                                        dropout = dropout)
 
         self.transformer_block_up_1 = TransformerBlock(in_dimensions= in_dimensions[1],
                                                         layers= t_layers[1],
                                                         heads=heads[1],
-                                                        gamma = gamma)
+                                                        gamma = gamma,
+                                                        dropout = dropout)
         self.transformer_block_up_2 = TransformerBlock(in_dimensions= in_dimensions[1],
                                                         layers= t_layers[1],
                                                         heads=heads[1],
-                                                        gamma = gamma)
+                                                        gamma = gamma,
+                                                        dropout = dropout)
         self.transformer_block_up_3 = TransformerBlock(in_dimensions= in_dimensions[2],
                                                         layers= t_layers[2],
                                                         heads=heads[2],
-                                                        gamma = gamma)
+                                                        gamma = gamma,
+                                                        dropout = dropout)
 
         self.transformer_block_refinement = TransformerBlock(in_dimensions= in_dimensions[1],
                                                              layers= 4,
                                                              heads=1,
-                                                             gamma = gamma)
+                                                             gamma = gamma,
+                                                             dropout = dropout)
 
         self.upsample_1 = nn.Sequential(nn.Conv2d(in_channels= in_dimensions[-1],
                                                    out_channels= in_dimensions[-1] * 2,
@@ -297,6 +345,8 @@ class Restormer(nn.Module):
                                                  padding_mode="zeros",
                                                  bias= False)
 
+        self.drop_path = DropPath(drop_prob= drop_path_prob)
+
     def forward(self,
                 x: torch.Tensor) -> torch.Tensor:
 
@@ -340,6 +390,6 @@ class Restormer(nn.Module):
         # print(x.shape)
         x = self.residual_reconstruction(x)
         # print(x.shape)
-        i_tilda = torch.add(x, x_in)
+        i_tilda = x + self.drop_path(x_in)
 
         return i_tilda
