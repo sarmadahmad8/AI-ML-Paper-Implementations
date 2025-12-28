@@ -218,10 +218,11 @@ class Restormer(nn.Module):
                  t_layers: Tuple[int, int, int, int],
                  gamma: float,
                  dropout: float = 0.1,
-                 drop_path_prob: float = 0.5):
+                 drop_path_prob: float = None):
 
         super().__init__()
-
+        self.drop_path_prob = drop_path_prob
+        
         self.shallow_features = nn.Conv2d(in_channels=in_channels,
                                           out_channels= in_dimensions[0],
                                           kernel_size=3,
@@ -345,7 +346,8 @@ class Restormer(nn.Module):
                                                  padding_mode="zeros",
                                                  bias= False)
 
-        self.drop_path = DropPath(drop_prob= drop_path_prob)
+        if self.drop_path_prob:
+            self.drop_path = DropPath(drop_prob= drop_path_prob)
 
     def forward(self,
                 x: torch.Tensor) -> torch.Tensor:
@@ -390,6 +392,9 @@ class Restormer(nn.Module):
         # print(x.shape)
         x = self.residual_reconstruction(x)
         # print(x.shape)
-        i_tilda = x + self.drop_path(x_in)
+        if self.drop_path_prob:
+            i_tilda = x + self.drop_path(x_in)
+        else:
+            i_tilda = x + x_in
 
         return i_tilda
