@@ -1,4 +1,5 @@
 from torchmetrics.functional import peak_signal_noise_ratio, structural_similarity_index_measure
+from utils import save_checkpoint
 from tqdm.auto import tqdm
 import torch
 from torch.amp import autocast, GradScaler
@@ -19,6 +20,7 @@ def test_step(model: torch.nn.Module,
         for batch, (X, y) in tqdm(enumerate(test_dataloader)):
             
             X, y = X.to(device), y.to(device)
+            # y = X - y
             if amp:
                 with autocast(dtype= torch.float16,
                              device_type= device):
@@ -30,8 +32,10 @@ def test_step(model: torch.nn.Module,
 
             y_preds = ycbcr(y_preds)
             y = ycbcr(y)
-            psnr = peak_signal_noise_ratio(y_preds[:, :1, :, :], y[:, :1, :, :])
-            ssim = structural_similarity_index_measure(y_preds[:, :1, :, :], y[:, :1, :, :])
+            psnr = peak_signal_noise_ratio(y_preds[:, :1, :, :], y[:, :1, :, :],
+                                           data_range= (0.0,1.0))
+            ssim = structural_similarity_index_measure(y_preds[:, :1, :, :], y[:, :1, :, :],
+                                                       data_range= (0.0,1.0))
             
             test_loss += loss.item()
             test_psnr += psnr.item()
@@ -54,6 +58,7 @@ def train(model: torch.nn.Module,
            train_dataloader: torch.utils.data.DataLoader,
            test_dataloader: torch.utils.data.DataLoader,
            device: torch.device,
+           experiment_name: str,
            amp: bool = False):
 
     if amp:
@@ -74,6 +79,7 @@ def train(model: torch.nn.Module,
     for batch, (X, y) in tqdm(enumerate(train_dataloader)):
         
         X, y = X.to(device), y.to(device)
+        # y = y - X # remove sharp from blur so model learns residuals
         if amp:
             with autocast(dtype= torch.float16,
                          device_type= device):
@@ -85,8 +91,10 @@ def train(model: torch.nn.Module,
             
         y_preds = ycbcr(y_preds)
         y = ycbcr(y)
-        psnr = peak_signal_noise_ratio(y_preds[:, :1, :, :], y[:, :1, :, :])
-        ssim = structural_similarity_index_measure(y_preds[:, :1, :, :], y[:, :1, :, :])
+        psnr = peak_signal_noise_ratio(y_preds[:, :1, :, :], y[:, :1, :, :],
+                                       data_range= (0.0,1.0))
+        ssim = structural_similarity_index_measure(y_preds[:, :1, :, :], y[:, :1, :, :], 
+                                                  data_range= (0.0,1.0))
         
         train_loss += loss.item()
         train_psnr += psnr.item()
@@ -134,6 +142,6 @@ def train(model: torch.nn.Module,
             save_checkpoint(model= model,
                             optimizer= optimizer,
                             scheduler= scheduler,
-                            checkpoint_name= f"Restormer-GoPro-{batch+1}iterations-L1-64.pth")
+                            checkpoint_name= f"Restormer-GoPro-{batch+1}iterations-L1-128-{experiment_name}.pth")
 
     return results
