@@ -8,12 +8,12 @@ from utils import plot_metrics, plot_reconstructed_sequence, save_checkpoint
 EPOCHS = 70
 LR = 1e-3
 ALPHA = 0.9
-WEIGHT = torch.tensor(19.2929, dtype= torch.float32)
+WEIGHT = torch.tensor(13.1020, dtype= torch.float32)
 print(WEIGHT)
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-train_dataloader, test_dataloader, train_dataset, test_dataset = create_dataloaders_MovingMNIST(batchsize= 64,
-                                                                                                 num_workers= 8)
+train_dataloader, test_dataloader, val_dataloader, train_dataset, test_dataset, val_dataset = create_dataloaders_MovingMNIST(batchsize= 64,
+                                                                                                                             num_workers= 8)
 
 convlstm = ConvLSTM(in_channels= (16, 128, 64, 64, 128),
                       out_channels=1,
@@ -21,7 +21,7 @@ convlstm = ConvLSTM(in_channels= (16, 128, 64, 64, 128),
                       patch_size= 16,
                       layers=5)
 
-loss_fn = nn.BCEWithLogitsLoss()
+loss_fn = nn.BCEWithLogitsLoss(pos_weight= WEIGHT)
 
 optimizer = torch.optim.RMSprop(params = convlstm.parameters(),
                                 lr= LR,
@@ -42,5 +42,5 @@ save_checkpoint(model= convlstm,
 plot_metrics(results= results)
 
 plot_reconstructed_sequence(model = convlstm,
-                            dataset= test_dataset,
+                            dataset= val_dataset,
                             samples = 3)
