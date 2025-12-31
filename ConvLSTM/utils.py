@@ -60,45 +60,82 @@ def plot_metrics(results: Dict[str, List[float]]):
 
 def plot_reconstructed_sequence(model: torch.nn.Module,
                                 dataset: torch.utils.data.Dataset,
+                                name: str = None,
                                 samples: int = 2,
                                 device: torch.device = "cpu"):
-
+    """
+    Plot input sequences, ground truth, and predictions side by side.
+    
+    Args:
+        model: Trained ConvLSTM model
+        dataset: Dataset to sample from
+        samples: Number of sequences to visualize
+        device: Device to run inference on
+    """
     model.to(device)
     model.eval()
-    rand_idx = random.sample(range(0, len(dataset)), k= samples)
-    plt.figure(figsize=(samples * 5, samples * 5))
-    k = 1
+    rand_idx = random.sample(range(0, len(dataset)), k=samples)
     
-    for i, idx in enumerate(rand_idx):
+    fig = plt.figure(figsize=(15, samples * 5))
+    
+    for sample_idx, idx in enumerate(rand_idx):
         with torch.inference_mode():
+            
             X = dataset[idx]
-            X, y = X[:5].unsqueeze(dim = 0), X[5:].unsqueeze(dim = 0)
+            X, y = X[:5].unsqueeze(dim=0), X[5:].unsqueeze(dim=0)
             X, y = X.to(device), y.to(device)
+            
             y_preds = model(X)
-            y_preds_labels = torch.round(torch.sigmoid(y_preds)).float()
-            X, y, y_preds_labels = X.squeeze(dim = 0), y.squeeze(dim = 0), y_preds_labels.squeeze(dim = 0)
-            for j in range(5):
-                plt.subplot(3 * samples, 5, k)
-                plt.imshow(X[j].permute(1, 2, 0))
-                plt.axis(False)
-                plt.title(f"X_t-1")
-                k += 1
-            plt.show()
+            y_preds_labels = torch.round(torch.sigmoid(y_preds)) 
+            X = X.squeeze(dim=0).cpu()
+            y = y.squeeze(dim=0).cpu()
+            y_preds_labels = y_preds_labels.squeeze(dim=0).cpu()
+            
+            
+            row_start = sample_idx * 3
             
             for j in range(5):
-                plt.subplot(3 * samples, 5, k)
-                plt.imshow(y[j].permute(1, 2, 0))
-                plt.axis(False)
-                plt.title(f"X_t+1")
-                k += 1
-            plt.show()
-
+                plt.subplot(samples * 3, 5, row_start * 5 + j + 1)
+                
+                img = X[j].squeeze()
+                if img.dim() == 2:
+                    plt.imshow(img, cmap='gray', vmin=0, vmax=1)
+                else:
+                    plt.imshow(img.permute(1, 2, 0))
+                
+                plt.axis('off')
+                if j == 2:
+                    plt.title(f"Sample {sample_idx + 1}: Input Frames", fontsize=12)
+            
             for j in range(5):
-                plt.subplot(3 * samples, 5, k)
-                plt.imshow(y_preds_labels[j].permute(1, 2, 0))
-                plt.axis(False)
-                plt.title(f"X_tilda_t+1")
-                k += 1
+                plt.subplot(samples * 3, 5, (row_start + 1) * 5 + j + 1)
+                
+                img = y[j].squeeze()
+                if img.dim() == 2:
+                    plt.imshow(img, cmap='gray', vmin=0, vmax=1)
+                else:
+                    plt.imshow(img.permute(1, 2, 0))
+                
+                plt.axis('off')
+                if j == 2:
+                    plt.title(f"Ground Truth", fontsize=12)
+            
+            for j in range(5):
+                plt.subplot(samples * 3, 5, (row_start + 2) * 5 + j + 1)
+                
+                img = y_preds_labels[j].squeeze()
+                if img.dim() == 2:
+                    plt.imshow(img, cmap='gray', vmin=0, vmax=1)
+                else:
+                    plt.imshow(img.permute(1, 2, 0))
+                
+                plt.axis('off')
+                if j == 2:
+                    plt.title(f"Predictions", fontsize=12)
     
+    plt.tight_layout(pad=0.1)
+    if name:
+        plt.savefig(fname = name,
+                    pad_inches = 0.1,
+                    dpi = 60)
     plt.show()
-            
