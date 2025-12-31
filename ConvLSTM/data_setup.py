@@ -13,7 +13,7 @@ def create_dataloaders_MovingMNIST(batchsize: int = 16,
                                    num_workers: int = 8):
         
     transforms = v2.Compose([
-        v2.ToDtype(dtype= torch.uint8,
+        v2.ToDtype(dtype= torch.float32,
                    scale= True),
         v2.Lambda(binarize_image)
     ])
