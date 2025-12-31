@@ -114,12 +114,14 @@ class ConvLSTM(nn.Module):
                                      padding=0)
 
         self.reconstruct = nn.Sequential(nn.Conv2d(in_channels=embed_dim[-1] + embed_dim[-2],
-                                                   out_channels= out_channels * 16,
-                                                   kernel_size=3,
-                                                   stride=1,
-                                                   padding=1,
-                                                   padding_mode="zeros"),
-                                         nn.PixelShuffle(upscale_factor=4))
+                                                   out_channels= out_channels * patch_size,
+                                                   kernel_size=1,
+                                                   stride=1),
+                                         nn.Flatten(start_dim=2,
+                                                    end_dim=3),
+                                         nn.Fold(kernel_size= 4,
+                                                 stride= 4,
+                                                 output_size= (64, 64)))
 
     def forward(self,
                 X: torch.tensor) -> torch.Tensor:
