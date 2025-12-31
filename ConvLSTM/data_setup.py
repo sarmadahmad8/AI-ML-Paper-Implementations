@@ -1,5 +1,5 @@
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, ConcatDataset, random_split
 import torchvision
 from torchvision.transforms import v2
 
@@ -28,6 +28,15 @@ def create_dataloaders_MovingMNIST(batchsize: int = 16,
                                                      download= True,
                                                      transform= transforms)
 
+    dataset = ConcatDataset(datasets=[train_dataset, test_dataset])
+
+    train_length = int(0.8 * len(dataset))
+    test_length = int(0.1 * len(dataset))
+    val_length = len(dataset) - train_length - test_length
+
+    train_dataset, test_dataset, val_dataset = random_split(dataset= dataset,
+                                                            lengths= [train_length, test_length, val_length])
+
     train_dataloader = DataLoader(dataset= train_dataset,
                                   batch_size= batchsize,
                                   num_workers= num_workers,
@@ -38,4 +47,9 @@ def create_dataloaders_MovingMNIST(batchsize: int = 16,
                                   num_workers= num_workers,
                                   shuffle= True)
 
-    return train_dataloader, test_dataloader, train_dataset, test_dataset
+    val_dataloader = DataLoader(dataset= val_dataset,
+                                batch_size= batchsize,
+                                num_workers= num_workers,
+                                shuffle= False)
+
+    return train_dataloader, test_dataloader, val_dataloader, train_dataset, test_dataset, val_dataset
