@@ -160,17 +160,16 @@ class SPyNet(nn.Module):
         flow = None
         for i, layer_num in enumerate(range(self.layers, 0, -1)):
             if layer_num == self.layers:
-                # flow = self._create_identity_grid(batch= B,
-                #                                   height= H // (2 ** (layer_num)),
-                #                                   width= W // (2 ** (layer_num)))
-                flow = torch.zeros((B, 2, H // (2 ** (layer_num)), W // (2 ** (layer_num))),
-                                   device= X.device)
+                flow = self._create_identity_grid(batch= B,
+                                                  height= H // (2 ** (layer_num)),
+                                                  width= W // (2 ** (layer_num)))
+                
             X_downsampled = F.adaptive_avg_pool2d(input=X,
                                           output_size= ((H // (2 ** (layer_num -1))), (W // (2 ** (layer_num -1)))))
             upsampled_flow = F.interpolate(input=flow,
                                            scale_factor= 2,
                                            mode= "bilinear",
-                                           align_corners = True) * 2.0
+                                           align_corners = True)
             # print(upsampled_flow.shape)
             warped_image = self.warp_image(img= X_downsampled[:, :3], 
                                            flow= upsampled_flow)
@@ -183,4 +182,4 @@ class SPyNet(nn.Module):
             residual_flow = self.spy_net[i](concat_input)
             flow = residual_flow + upsampled_flow
             
-        return flow, residual_flow, upsampled_flow
+        return flow
