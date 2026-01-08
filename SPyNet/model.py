@@ -44,10 +44,62 @@ class ConvNet(nn.Module):
                                                padding_mode= "zeros")
                                     )
 
+    def _create_identity_grid(self,
+                          batch: int,
+                          height: int,
+                          width: int,
+                          device: torch.device = "cuda"):
+    
+        y = torch.linspace(-1, 1, height , device= device)
+        x = torch.linspace(-1, 1, width, device = device)
+        grid_y, grid_x = torch.meshgrid(y, x, indexing='ij')
+    
+        grid = torch.stack([grid_x, grid_y], dim=-1).unsqueeze(0)
+        
+        grid = grid.repeat(batch, 1, 1, 1)
+        
+        return grid.permute(0, 3, 1, 2)
+
+    def warp_image(self,
+                   img: torch.Tensor, 
+                   flow: torch.Tensor):
+        
+        batch, _, height, width = img.shape
+        
+        grid = self._create_identity_grid(batch = batch,
+                                          height = height,
+                                          width = width,
+                                          device = img.device)
+        
+        flow_permuted = -flow
+        
+        flow_normalized = torch.zeros_like(flow_permuted).to(img.device)
+        flow_normalized[:, 0] = 2.0 * flow_permuted[:, 0] / (width - 1)
+        flow_normalized[:, 1] = 2.0 * flow_permuted[:, 1] / (height - 1)
+        
+        sampling_grid = grid + flow_normalized
+        
+        warped = F.grid_sample(input = img,
+                               grid = sampling_grid.permute(0, 2, 3, 1), 
+                               align_corners=False, 
+                               padding_mode='border')
+        return warped
+
     def forward(self,
                 x: torch.Tensor) -> torch.Tensor:
 
-        return self.conv_net(x)
+        B, C, H, W = x.shape
+        
+        if C == 8:
+            return self.conv_net(x)
+        else:
+            flow = self._create_identity_grid(batch= B,
+                                              height= H,
+                                              width= W,
+                                              device= x.device)
+            
+            input_cat = torch.cat((x, flow), dim= 1)
+            return self.conv_net(input_cat)
 
 class SPyNet(nn.Module):
 
@@ -96,7 +148,7 @@ class SPyNet(nn.Module):
         
         warped = F.grid_sample(input = img,
                                grid = sampling_grid.permute(0, 2, 3, 1), 
-                               align_corners=False, 
+                               align_corners=True, 
                                padding_mode='border')
         return warped
 
@@ -108,15 +160,17 @@ class SPyNet(nn.Module):
         flow = None
         for i, layer_num in enumerate(range(self.layers, 0, -1)):
             if layer_num == self.layers:
-                flow = self._create_identity_grid(batch= B,
-                                                  height= H // (2 ** (layer_num)),
-                                                  width= W // (2 ** (layer_num)))
-            X_downsampled = F.interpolate(input=X,
-                                          size= ((H // (2 ** (layer_num -1))), (W // (2 ** (layer_num -1)))),
-                                          mode= "bilinear")
+                # flow = self._create_identity_grid(batch= B,
+                #                                   height= H // (2 ** (layer_num)),
+                #                                   width= W // (2 ** (layer_num)))
+                flow = torch.zeros((B, 2, H // (2 ** (layer_num)), W // (2 ** (layer_num))),
+                                   device= X.device)
+            X_downsampled = F.adaptive_avg_pool2d(input=X,
+                                          output_size= ((H // (2 ** (layer_num -1))), (W // (2 ** (layer_num -1)))))
             upsampled_flow = F.interpolate(input=flow,
                                            scale_factor= 2,
-                                           mode= "bilinear")
+                                           mode= "bilinear",
+                                           align_corners = True) * 2.0
             # print(upsampled_flow.shape)
             warped_image = self.warp_image(img= X_downsampled[:, :3], 
                                            flow= upsampled_flow)
@@ -129,4 +183,4 @@ class SPyNet(nn.Module):
             residual_flow = self.spy_net[i](concat_input)
             flow = residual_flow + upsampled_flow
             
-        return flow
+        return flow, residual_flow, upsampled_flow
