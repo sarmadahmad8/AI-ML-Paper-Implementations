@@ -4,6 +4,18 @@ from loss import EndPointErrorLoss
 from typing import Tuple
 from tqdm.auto import tqdm
 
+def normalize_flow(flow: torch.Tensor):
+    
+    batch, _, height, width = flow.shape
+    
+    flow_permuted = flow
+    
+    flow_normalized = torch.zeros_like(flow_permuted).to(flow.device)
+    flow_normalized[:, 0] = 2.0 * flow_permuted[:, 0] / (width - 1)
+    flow_normalized[:, 1] = 2.0 * flow_permuted[:, 1] / (height - 1)
+    
+    return flow_normalized
+
 def fl_all(preds: torch.Tensor,
            targets: torch.Tensor):
 
@@ -35,7 +47,7 @@ def train_step(model: torch.nn.Module,
                scheduler: torch.optim.lr_scheduler.LRScheduler = None,
                device: torch.device = "cuda"):
 
-    resize = v2.Resize(size=resize)
+    resized = v2.Resize(size=resize)
     normalize = v2.Normalize(mean= [0.485, 0.456, 0.406, 0.485, 0.456, 0.406],
                      std= [0.229, 0.224, 0.225, 0.229, 0.224, 0.225])
     model.train()
@@ -47,8 +59,9 @@ def train_step(model: torch.nn.Module,
         # print(flow.shape)
         X, y = torch.cat((img_1, img_2), dim= 1), flow.permute(0, 2, 3, 1)
         X, y = X.to(device), y.to(device)
-        X, y = normalize(resize(X)), resize(y)
-
+        X, y = normalize(resized(X)), resized(y)
+        y = y * (resize[0] / 448)
+        
         y_preds = model(X)
         # print(y_preds.shape, y.shape)
         loss = loss_fn(y_preds, y)
@@ -92,8 +105,9 @@ def test_step(model: torch.nn.Module,
             img_1, img_2, flow = X
             X, y = torch.cat((img_1, img_2), dim= 1), flow.permute(0, 2, 3, 1)
             X, y = X.to(device), y.to(device)
-            X, y = resize(X), resize(y)
-    
+            X, y = resized(X), resized(y)
+            y = y * (resize[0] / 448)
+            
             y_preds = model(X)
     
             loss = loss_fn(y_preds, y)
