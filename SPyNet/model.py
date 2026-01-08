@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 class ConvNet(nn.Module):
 
     def __init__(self):
@@ -60,30 +59,6 @@ class ConvNet(nn.Module):
         
         return grid.permute(0, 3, 1, 2)
 
-    def warp_image(self,
-                   img: torch.Tensor, 
-                   flow: torch.Tensor):
-        
-        batch, _, height, width = img.shape
-        
-        grid = self._create_identity_grid(batch = batch,
-                                          height = height,
-                                          width = width,
-                                          device = img.device)
-        
-        flow_permuted = -flow
-        
-        flow_normalized = torch.zeros_like(flow_permuted).to(img.device)
-        flow_normalized[:, 0] = 2.0 * flow_permuted[:, 0] / (width - 1)
-        flow_normalized[:, 1] = 2.0 * flow_permuted[:, 1] / (height - 1)
-        
-        sampling_grid = grid + flow_normalized
-        
-        warped = F.grid_sample(input = img,
-                               grid = sampling_grid.permute(0, 2, 3, 1), 
-                               align_corners=False, 
-                               padding_mode='border')
-        return warped
 
     def forward(self,
                 x: torch.Tensor) -> torch.Tensor:
@@ -161,25 +136,28 @@ class SPyNet(nn.Module):
         for i, layer_num in enumerate(range(self.layers, 0, -1)):
             if layer_num == self.layers:
                 flow = self._create_identity_grid(batch= B,
-                                                  height= H // (2 ** (layer_num)),
-                                                  width= W // (2 ** (layer_num)))
+                                                  height= H // (2 ** (layer_num - 1)),
+                                                  width= W // (2 ** (layer_num - 1)))
+            else:
+                flow = F.interpolate(input=flow,
+                                     scale_factor= 2,
+                                     mode= "bilinear",
+                                     align_corners = True) * 2.0
                 
-            X_downsampled = F.adaptive_avg_pool2d(input=X,
-                                          output_size= ((H // (2 ** (layer_num -1))), (W // (2 ** (layer_num -1)))))
-            upsampled_flow = F.interpolate(input=flow,
-                                           scale_factor= 2,
-                                           mode= "bilinear",
-                                           align_corners = True)
+            X_downsampled = F.interpolate(input=X,
+                                          size= ((H // (2 ** (layer_num -1))), (W // (2 ** (layer_num -1)))),
+                                          mode= "bilinear")
+            
             # print(upsampled_flow.shape)
             warped_image = self.warp_image(img= X_downsampled[:, :3], 
-                                           flow= upsampled_flow)
+                                           flow= flow)
             if layer_num == self.layers:
-                concat_input = torch.cat((X_downsampled, upsampled_flow), dim= 1)
+                concat_input = torch.cat((X_downsampled, flow), dim= 1)
 
             else:
-                concat_input = torch.cat((X_downsampled[:, :3], warped_image, upsampled_flow), dim= 1)
+                concat_input = torch.cat((X_downsampled[:, :3], warped_image, flow), dim= 1)
             
             residual_flow = self.spy_net[i](concat_input)
-            flow = residual_flow + upsampled_flow
+            flow = residual_flow + flow
             
         return flow
