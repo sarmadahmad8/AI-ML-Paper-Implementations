@@ -16,15 +16,15 @@ train_dataloader, test_dataloader, train_dataset, test_dataset = create_dataload
                                                                                            num_workers= 8)
 
 spynet = SPyNet(layers=LAYERS).to(device)
-
+# convnet = ConvNet()
 loss_fn = EndPointErrorLoss().to(device)
 
 for i, convnet_module in enumerate(spynet.spy_net):
     if i >= (LAYERS - 1):
-        checkpoint_path = f"models/ConvNet-{i}-Sintel-150epochs.pth"
+        checkpoint_path = f"models/ConvNet-{i}-Sintel-150epochs-3experiment.pth"
         convnet_module.load_state_dict(torch.load(checkpoint_path))
     else:
-        checkpoint_path = f"models/ConvNet-{i+1}-Sintel-150epochs.pth"
+        checkpoint_path = f"models/ConvNet-{i+1}-Sintel-150epochs-3experiment.pth"
         convnet_module.load_state_dict(torch.load(checkpoint_path))
 
     if i != (len(spynet.spy_net) - 1):
