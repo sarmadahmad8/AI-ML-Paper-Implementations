@@ -113,7 +113,7 @@ class SPyNet(nn.Module):
                                           width = width,
                                           device = img.device)
         
-        flow_permuted = -flow
+        flow_permuted = flow
         
         flow_normalized = torch.zeros_like(flow_permuted).to(img.device)
         flow_normalized[:, 0] = 2.0 * flow_permuted[:, 0] / (width - 1)
@@ -149,7 +149,7 @@ class SPyNet(nn.Module):
                                           mode= "bilinear")
             
             # print(upsampled_flow.shape)
-            warped_image = self.warp_image(img= X_downsampled[:, :3], 
+            warped_image = self.warp_image(img= X_downsampled[:, 3:6], 
                                            flow= flow)
             if layer_num == self.layers:
                 concat_input = torch.cat((X_downsampled, flow), dim= 1)
