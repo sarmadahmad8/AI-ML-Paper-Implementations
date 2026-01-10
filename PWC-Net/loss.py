@@ -36,16 +36,20 @@ class PWCNetLoss(nn.Module):
         for flow, level in zip(flows, levels):
             # Downsample scaled GT to pyramid level
             downsample_factor = 2 ** level
-            gt_downsampled = F.avg_pool2d(gt_flow_scaled, 
-                                          kernel_size=downsample_factor, 
-                                          stride=downsample_factor)
+            gt_downsampled = F.interpolate(input= gt_flow_scaled,
+                                           size=flow.shape[2:],
+                                           mode="bilinear",
+                                           align_corners=True)
+            # gt_downsampled = F.avg_pool2d(gt_flow_scaled, 
+            #                               kernel_size=downsample_factor, 
+            #                               stride=downsample_factor)
             
             # Match sizes if needed
-            if gt_downsampled.shape != flow.shape:
-                gt_downsampled = F.interpolate(gt_downsampled, 
-                                              size=flow.shape[2:], 
-                                              mode='bilinear', 
-                                              align_corners=False)
+            # if gt_downsampled.shape != flow.shape:
+            #     gt_downsampled = F.interpolate(gt_downsampled, 
+            #                                   size=flow.shape[2:], 
+            #                                   mode='bilinear', 
+            #                                   align_corners=False)
             
             # L2 loss
             level_loss = torch.norm(flow - gt_downsampled, p=2, dim=1).mean()
