@@ -83,39 +83,43 @@ class OpticalFLowEstimator(nn.Module):
 
         super().__init__()
 
-        self.ofe = nn.Sequential(nn.Conv2d(in_channels=in_channels,
+        self.conv_1 = nn.Sequential(nn.Conv2d(in_channels=in_channels,
                                            out_channels=128,
                                            kernel_size=3,
                                            stride=1,
                                            padding=1,
                                            padding_mode="zeros"),
                                  nn.LeakyReLU(negative_slope=0.1,
-                                              inplace=False),
-                                 nn.Conv2d(in_channels=128,
+                                              inplace=False))
+        
+        self.conv_2 = nn.Sequential(nn.Conv2d(in_channels=in_channels + 128,
                                            out_channels=96,
                                            kernel_size=3,
                                            stride=1,
                                            padding=1,
                                            padding_mode="zeros"),
                                  nn.LeakyReLU(negative_slope=0.1,
-                                              inplace=False),
-                                 nn.Conv2d(in_channels=96,
+                                              inplace=False))
+        
+        self.conv_3 = nn.Sequential(nn.Conv2d(in_channels=in_channels + 96,
                                            out_channels=64,
                                            kernel_size=3,
                                            stride=1,
                                            padding=1,
                                            padding_mode="zeros"),
                                  nn.LeakyReLU(negative_slope=0.1,
-                                              inplace=False),
-                                 nn.Conv2d(in_channels=64,
+                                              inplace=False))
+        
+        self.conv_4 = nn.Sequential(nn.Conv2d(in_channels=in_channels + 64,
                                            out_channels=32,
                                            kernel_size=3,
                                            stride=1,
                                            padding=1,
                                            padding_mode="zeros"),
                                  nn.LeakyReLU(negative_slope=0.1,
-                                              inplace=False),
-                                 nn.Conv2d(in_channels=32,
+                                              inplace=False))
+        
+        self.conv_5 = nn.Sequential(nn.Conv2d(in_channels=in_channels + 32,
                                            out_channels=2,
                                            kernel_size=3,
                                            stride=1,
@@ -125,7 +129,12 @@ class OpticalFLowEstimator(nn.Module):
     def forward(self,
                 c_v_2: torch.Tensor) -> torch.Tensor:
 
-        return self.ofe(c_v_2)
+        x = self.conv_1(c_v_2)
+        x = self.conv_2(torch.cat((c_v_2, x), dim = 1))
+        x = self.conv_3(torch.cat((c_v_2, x), dim = 1))
+        x = self.conv_4(torch.cat((c_v_2, x), dim = 1))
+        x = self.conv_5(torch.cat((c_v_2, x), dim = 1))
+        return x
 
 
 class ContextNetwork(nn.Module):
