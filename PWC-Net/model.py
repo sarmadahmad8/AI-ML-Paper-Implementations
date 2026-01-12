@@ -79,11 +79,22 @@ class FeaturePyramidExtractorNetwork(nn.Module):
 class OpticalFLowEstimator(nn.Module):
 
     def __init__(self,
-                in_channels: int):
+                in_channels: int,
+                upconv: bool):
 
         super().__init__()
-
-        self.conv_1 = nn.Sequential(nn.Conv2d(in_channels=in_channels,
+        self.use_upconv = upconv
+        
+        self.conv_0 = nn.Sequential(nn.Conv2d(in_channels=in_channels,
+                                           out_channels=128,
+                                           kernel_size=3,
+                                           stride=1,
+                                           padding=1,
+                                           padding_mode="zeros"),
+                                 nn.LeakyReLU(negative_slope=0.1,
+                                              inplace=False))
+        
+        self.conv_1 = nn.Sequential(nn.Conv2d(in_channels=in_channels + 128,
                                            out_channels=128,
                                            kernel_size=3,
                                            stride=1,
@@ -126,15 +137,27 @@ class OpticalFLowEstimator(nn.Module):
                                            padding=1,
                                            padding_mode="zeros"))
 
+        self.upconv = nn.ConvTranspose2d(in_channels=in_channels+32,
+                                         out_channels=2,
+                                         kernel_size=4,
+                                         stride=2,
+                                         padding=1,
+                                         bias=True)
+
     def forward(self,
                 c_v_2: torch.Tensor) -> torch.Tensor:
 
-        x = self.conv_1(c_v_2)
+        x = self.conv_0(c_v_2)
+        x = self.conv_1(torch.cat((c_v_2, x), dim = 1))
         x = self.conv_2(torch.cat((c_v_2, x), dim = 1))
         x = self.conv_3(torch.cat((c_v_2, x), dim = 1))
         x = self.conv_4(torch.cat((c_v_2, x), dim = 1))
-        x = self.conv_5(torch.cat((c_v_2, x), dim = 1))
-        return x
+        flow = self.conv_5(torch.cat((c_v_2, x), dim = 1))
+        if self.use_upconv == True:
+            up_flow_features = self.upconv(torch.cat((c_v_2, x), dim = 1))
+            return flow, up_flow_features
+        else:
+            return flow, x
 
 
 class ContextNetwork(nn.Module):
@@ -218,11 +241,16 @@ class PWCNet(nn.Module):
 
         self.fpen = FeaturePyramidExtractorNetwork()
 
-        self.ofe2 = OpticalFLowEstimator(in_channels=81+2+32)
-        self.ofe3 = OpticalFLowEstimator(in_channels=81+2+64)
-        self.ofe4 = OpticalFLowEstimator(in_channels=81+2+96)
-        self.ofe5 = OpticalFLowEstimator(in_channels=81+2+128)
-        self.ofe6 = OpticalFLowEstimator(in_channels=81+2+192)
+        self.ofe2 = OpticalFLowEstimator(in_channels=81+4+32,
+                                         upconv=False)
+        self.ofe3 = OpticalFLowEstimator(in_channels=81+4+64,
+                                         upconv=True)
+        self.ofe4 = OpticalFLowEstimator(in_channels=81+4+96,
+                                         upconv=True)
+        self.ofe5 = OpticalFLowEstimator(in_channels=81+4+128,
+                                         upconv=True)
+        self.ofe6 = OpticalFLowEstimator(in_channels=81+4+192,
+                                         upconv=True)
 
         self.cn = ContextNetwork()
 
@@ -267,51 +295,21 @@ class PWCNet(nn.Module):
                                padding_mode='border')
         return warped
 
-    def cost_volume(self,
-                    c1: torch.Tensor, 
-                    c2w: torch.Tensor, 
-                    search_range: int = 4):
-        """
-        Args:
-            c1: features from image 1, shape [B, C, H, W]
-            c2w: warped features from image 2, shape [B, C, H, W]
-            search_range: d (maximum displacement in each direction)
-        
-        Returns:
-            cost_vol: shape [B, (2*d+1)^2, H, W]
-        """
+    def cost_volume(self, c1: torch.Tensor, c2w: torch.Tensor, search_range: int = 4):
         B, C, H, W = c1.shape
         d = search_range
         
-        # Normalize features
         c1 = c1 / (torch.norm(c1, dim=1, keepdim=True) + 1e-8)
         c2w = c2w / (torch.norm(c2w, dim=1, keepdim=True) + 1e-8)
         
-        cost_vol = []
+        c2w_padded = F.pad(c2w, (d, d, d, d), mode='constant', value=0)
         
-        # Search in [-d, d] range
-        for dy in range(-d, d+1):
-            for dx in range(-d, d+1):
-                # Shift c2w by (dx, dy)
-                shifted = torch.zeros_like(c2w)
-                
-                if dy < 0:
-                    shifted[:, :, :dy, :] = c2w[:, :, -dy:, :]
-                elif dy > 0:
-                    shifted[:, :, dy:, :] = c2w[:, :, :-dy, :]
-                else:
-                    shifted[:, :, :, :] = c2w
-                
-                if dx < 0:
-                    shifted[:, :, :, :dx] = shifted[:, :, :, -dx:]
-                elif dx > 0:
-                    shifted[:, :, :, dx:] = shifted[:, :, :, :-dx]
-                
-                # Compute correlation (dot product across channel dimension)
-                corr = (c1 * shifted).sum(dim=1, keepdim=True)
-                cost_vol.append(corr)
+        c2w_unfold = c2w_padded.unfold(2, H, 1).unfold(3, W, 1)
+        c2w_unfold = c2w_unfold.contiguous().view(B, C, (2*d+1)*(2*d+1), H, W)
         
-        cost_vol = torch.cat(cost_vol, dim=1)  # [B, (2d+1)^2, H, W]
+        c1_expanded = c1.unsqueeze(2)
+        
+        cost_vol = (c1_expanded * c2w_unfold).sum(dim=1)
         
         return cost_vol
 
@@ -334,9 +332,9 @@ class PWCNet(nn.Module):
                                 dtype= torch.float32,
                                 device= I_1.device)
 
-        flow_input_6 = torch.cat((c_1_6, c_v_2_6, init_flow_6), dim= 1)
+        flow_input_6 = torch.cat((c_1_6, c_v_2_6, init_flow_6, init_flow_6), dim= 1)
 
-        flow_6 = self.ofe6(flow_input_6) + init_flow_6
+        flow_6, up_flow_features_6 = self.ofe6(flow_input_6)
 
         init_flow_5 = F.interpolate(input=flow_6,
                                scale_factor= 2,
@@ -350,9 +348,9 @@ class PWCNet(nn.Module):
                                    c1= c_1_5,
                                    search_range= 4)
 
-        flow_input_5 = torch.cat((c_1_5, c_v_2_5, init_flow_5), dim= 1)
+        flow_input_5 = torch.cat((c_1_5, c_v_2_5, init_flow_5, up_flow_features_6), dim= 1)
 
-        flow_5 = self.ofe5(flow_input_5) + init_flow_5
+        flow_5, up_flow_features_5 = self.ofe5(flow_input_5)
 
         init_flow_4 = F.interpolate(input=flow_5,
                                scale_factor= 2,
@@ -366,9 +364,9 @@ class PWCNet(nn.Module):
                                    c1= c_1_4,
                                    search_range= 4)
 
-        flow_input_4 = torch.cat((c_1_4, c_v_2_4, init_flow_4), dim= 1)
+        flow_input_4 = torch.cat((c_1_4, c_v_2_4, init_flow_4, up_flow_features_5), dim= 1)
 
-        flow_4 = self.ofe4(flow_input_4) + init_flow_4
+        flow_4, up_flow_features_4 = self.ofe4(flow_input_4)
 
         init_flow_3 = F.interpolate(input=flow_4,
                                scale_factor= 2,
@@ -382,9 +380,9 @@ class PWCNet(nn.Module):
                                    c1= c_1_3,
                                    search_range= 4)
 
-        flow_input_3 = torch.cat((c_1_3, c_v_2_3, init_flow_3), dim= 1)
+        flow_input_3 = torch.cat((c_1_3, c_v_2_3, init_flow_3, up_flow_features_4), dim= 1)
 
-        flow_3 = self.ofe3(flow_input_3) + init_flow_3
+        flow_3, up_flow_features_3 = self.ofe3(flow_input_3)
 
         init_flow_2 = F.interpolate(input=flow_3,
                                scale_factor= 2,
@@ -398,11 +396,11 @@ class PWCNet(nn.Module):
                                    c1= c_1_2,
                                    search_range= 4)
 
-        flow_input_2 = torch.cat((c_1_2, c_v_2_2, init_flow_2), dim= 1)
+        flow_input_2 = torch.cat((c_1_2, c_v_2_2, init_flow_2, up_flow_features_3), dim= 1)
 
-        flow_2 = self.ofe2(flow_input_2) + init_flow_2
+        flow_2, flow_features_2 = self.ofe2(flow_input_2)
 
-        cn_input = torch.cat((c_1_2, flow_2), dim= 1)
+        cn_input = torch.cat((flow_features_2, flow_2), dim= 1)
 
         refined_flow_2 = self.cn(cn_input) + flow_2
 
