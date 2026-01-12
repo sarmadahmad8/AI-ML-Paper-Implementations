@@ -1,20 +1,17 @@
 import torch
+from torch import autocast, GradScaler
 from torchvision.transforms import v2
-from loss import EndPointErrorLoss
+import torch.nn.functional as F
 from typing import Tuple
 from tqdm.auto import tqdm
+from utils import save_checkpoint
 
-def normalize_flow(flow: torch.Tensor):
-    
-    batch, _, height, width = flow.shape
-    
-    flow_permuted = flow
-    
-    flow_normalized = torch.zeros_like(flow_permuted).to(flow.device)
-    flow_normalized[:, 0] = 2.0 * flow_permuted[:, 0] / (width - 1)
-    flow_normalized[:, 1] = 2.0 * flow_permuted[:, 1] / (height - 1)
-    
-    return flow_normalized
+def end_point_error(preds: torch.Tensor,
+                    targets: torch.tensor):
+
+    epe = torch.sqrt(((preds - targets) ** 2).sum(dim=1))
+
+    return epe.mean()
 
 def fl_all(preds: torch.Tensor,
            targets: torch.Tensor):
@@ -45,48 +42,69 @@ def train_step(model: torch.nn.Module,
                optimizer: torch.optim.Optimizer,
                resize: Tuple[int, int],
                scheduler: torch.optim.lr_scheduler.LRScheduler = None,
+               scaler: torch.amp.GradScaler = None,
                device: torch.device = "cuda"):
 
     resized = v2.Resize(size=resize)
     normalize = v2.Normalize(mean= [0.485, 0.456, 0.406, 0.485, 0.456, 0.406],
                      std= [0.229, 0.224, 0.225, 0.229, 0.224, 0.225])
     model.train()
-    train_epe_loss, train_fl_all, train_aae = 0.0, 0.0, 0.0
+    train_l2_loss, train_fl_all, train_aae, train_epe = 0.0, 0.0, 0.0, 0.0
 
     for batch, X in tqdm(enumerate(dataloader)):
         
         img_1, img_2, flow = X
-        # print(flow.shape)
         X, y = torch.cat((img_1, img_2), dim= 1), flow.permute(0, 2, 3, 1)
         X, y = X.to(device), y.to(device)
         X, y = normalize(resized(X)), resized(y)
         
-        y_preds = model(X)
-        # print(y_preds.shape, y.shape)
-        loss = loss_fn(y_preds, y, model.parameters())
+        optimizer.zero_grad()
+
+        if scaler:
+            with torch.autocast(device_type= device, dtype= torch.float16):
+                y_preds = model(X)
+                loss = loss_fn(y_preds, y, model.parameters())
+        else:
+            y_preds = model(X)
+            loss = loss_fn(y_preds, y, model.parameters())
+            
         with torch.no_grad():
-            aae = angle_error(y_preds, y)
-            fl = fl_all(y_preds, y)
+            flow_downsampled = y_preds[0] * 20.0
+            pred_flow = F.interpolate(flow_downsampled, 
+                                      scale_factor=4, 
+                                      mode='bilinear', 
+                                      align_corners=True) 
+            aae = angle_error(pred_flow, y)
+            fl = fl_all(pred_flow, y)
+            epe = end_point_error(pred_flow, y)
         
-        train_epe_loss += loss
+        train_l2_loss += loss
         train_aae += aae
         train_fl_all += fl
+        train_epe += epe
         
-        optimizer.zero_grad()
-        loss.backward()
-        # torch.nn.utils.clip_grad_norm_(parameters= model.parameters(),
-        #                                max_norm= 1.0)
-        optimizer.step()
+        if scaler:
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+
+        else:
+            loss.backward()
+            # torch.nn.utils.clip_grad_norm_(parameters= model.parameters(),
+            #                                max_norm= 10.0)
+            optimizer.step()
+            
         if scheduler:
             scheduler.step()
 
-    train_epe_loss /= len(dataloader)
+    train_l2_loss /= len(dataloader)
     train_aae /= len(dataloader)
     train_fl_all /= len(dataloader)
+    train_epe /= len(dataloader)
 
-    print(f" Train Loss: {train_epe_loss:.5f} | Train AAE: {train_aae:.5f} | Train Fl-all: {train_fl_all:.5f}")
+    print(f" Train Loss: {train_l2_loss:.5f} | Train AAE: {train_aae:.5f} | Train Fl-all: {train_fl_all:.5f} | Train EPE: {train_epe: .5f}")
 
-    return train_epe_loss, train_aae, train_fl_all
+    return train_l2_loss, train_aae, train_fl_all, train_epe
 
 def test_step(model: torch.nn.Module,
               dataloader: torch.utils.data.DataLoader,
@@ -105,14 +123,12 @@ def test_step(model: torch.nn.Module,
             X, y = torch.cat((img_1, img_2), dim= 1), flow.permute(0, 2, 3, 1)
             X, y = X.to(device), y.to(device)
             X, y = resized(X), resized(y)
-            y = y * (resize[0] / 448)
             
             y_preds = model(X)
     
-            loss = loss_fn(y_preds, y)
-            with torch.no_grad():
-                aae = angle_error(y_preds, y)
-                fl = fl_all(y_preds, y)
+            loss = loss_fn(y_preds, y, model.parameters())
+            aae = angle_error(y_preds[0], y)
+            fl = fl_all(y_preds[0], y)
             
             test_epe_loss += loss
             test_aae += aae
@@ -133,10 +149,12 @@ def train_Sintel(model: torch.nn.Module,
                  optimizer: torch.optim.Optimizer,
                  resize: Tuple[int, int],
                  scheduler: torch.optim.lr_scheduler.LRScheduler = None,
+                 use_scaler: bool = False,
                  device: torch.device = "cuda",
                  epochs: int = 5):
 
-    results = {"train_epe": [],
+    results = {"train_l2": [],
+               "train_epe": [],
                "train_aae": [],
                "train_fl_all": [],
                "test_epe": [],
@@ -144,16 +162,28 @@ def train_Sintel(model: torch.nn.Module,
                "test_fl_all": []}
 
     model.to(device)
+
+    if use_scaler:
+        scaler = GradScaler()
+    else:
+        scaler = None
+        
     for epoch in tqdm(range(epochs)):
-        train_epe, train_aae, train_fl_all = train_step(model = model,
-                                                        dataloader= train_dataloader,
-                                                        loss_fn= loss_fn,
-                                                        optimizer= optimizer,
-                                                        scheduler= scheduler,
-                                                        resize= resize,
-                                                        device= device)
+        train_l2, train_aae, train_fl_all, train_epe = train_step(model = model,
+                                                                  dataloader= train_dataloader,
+                                                                  loss_fn= loss_fn,
+                                                                  optimizer= optimizer,
+                                                                  scheduler= scheduler,
+                                                                  resize= resize,
+                                                                  device= device,
+                                                                  scaler= scaler)
 
+        if (epoch + 1) % 5 == 0:
+            save_checkpoint(model = model,
+                            optimizer = optimizer,
+                            checkpoint_name = f"PWCNet-Sintel-{epoch + 1}epochs-Experiment3.pth")
 
+        results["train_l2"].append(train_l2)
         results["train_epe"].append(train_epe)
         results["train_aae"].append(train_aae)
         results["train_fl_all"].append(train_fl_all)
