@@ -1,9 +1,52 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from typing import Dict
 
 class PWCNetLoss(nn.Module):
-    def __init__(self, weights=None, gamma=0.0004):
+    def __init__(self,
+                 weights: Dict[int, float] = None):
+        super().__init__()
+        
+        if weights is None:
+            self.weights = {
+                2: 0.005,
+                3: 0.01,
+                4: 0.02,
+                5: 0.08,
+                6: 0.32
+            }
+        else:
+            self.weights = weights
+    
+    def forward(self, 
+                predicted_flows, 
+                gt_flow):
+        
+        total_loss = 0.0
+        gt_flow_scaled = gt_flow / 20.0
+        
+        flow_2, flow_3, flow_4, flow_5, flow_6 = predicted_flows
+        flows = [flow_2, flow_3, flow_4, flow_5, flow_6]
+        levels = [2, 3, 4, 5, 6]
+        
+        for flow, level in zip(flows, levels):
+            gt_downsampled = F.interpolate(gt_flow_scaled,
+                                           size=flow.shape[2:],
+                                           mode="bilinear",
+                                           align_corners=True)
+            
+            level_loss = torch.norm(flow - gt_downsampled, p=2, dim=1).mean()
+            total_loss += self.weights[level] * level_loss
+        
+        return total_loss
+
+class PWCNetRobustLoss(nn.Module):
+    
+    def __init__(self,
+                 weights: Dict[int, float] = None,
+                 q: float = 0.4,
+                 epsilon: float = 0.01):
         super().__init__()
         
         if weights is None:
@@ -17,16 +60,15 @@ class PWCNetLoss(nn.Module):
         else:
             self.weights = weights
             
-        self.gamma = gamma
+        self.q = q
+        self.epsilon = epsilon
     
-    def forward(self, 
-                predicted_flows,  # (flow_2, flow_3, flow_4, flow_5, flow_6)
-                gt_flow,          # original ground truth
-                model_params):
-        
+    def forward(self,
+                predicted_flows: torch.Tensor,
+                gt_flow: torch.Tensor):
+
         total_loss = 0.0
         
-        # Scale ground truth DOWN by 20 (not up!)
         gt_flow_scaled = gt_flow / 20.0
         
         flow_2, flow_3, flow_4, flow_5, flow_6 = predicted_flows
@@ -34,32 +76,13 @@ class PWCNetLoss(nn.Module):
         levels = [2, 3, 4, 5, 6]
         
         for flow, level in zip(flows, levels):
-            # Downsample scaled GT to pyramid level
-            downsample_factor = 2 ** level
-            gt_downsampled = F.interpolate(input= gt_flow_scaled,
-                                           size=flow.shape[2:],
-                                           mode="bilinear",
-                                           align_corners=True)
-            # gt_downsampled = F.avg_pool2d(gt_flow_scaled, 
-            #                               kernel_size=downsample_factor, 
-            #                               stride=downsample_factor)
+            gt_downsampled = F.interpolate(gt_flow_scaled,
+                                          size=flow.shape[2:],
+                                          mode='bilinear',
+                                          align_corners=True)
             
-            # Match sizes if needed
-            # if gt_downsampled.shape != flow.shape:
-            #     gt_downsampled = F.interpolate(gt_downsampled, 
-            #                                   size=flow.shape[2:], 
-            #                                   mode='bilinear', 
-            #                                   align_corners=False)
+            level_loss = ((torch.abs(flow - gt_downsampled) + self.epsilon) ** self.q).mean()
             
-            # L2 loss
-            level_loss = torch.norm(flow - gt_downsampled, p=2, dim=1).mean()
             total_loss += self.weights[level] * level_loss
-        
-        # Regularization
-        reg_loss = 0.0
-        for param in model_params:
-            reg_loss += torch.norm(param, p=2)
-        
-        total_loss += self.gamma * reg_loss
         
         return total_loss
