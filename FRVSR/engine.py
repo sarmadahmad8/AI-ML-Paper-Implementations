@@ -1,4 +1,5 @@
 from torchmetrics.functional import peak_signal_noise_ratio, structural_similarity_index_measure
+from utils import save_checkpoint
 from tqdm.auto import tqdm
 from torch.amp import autocast, GradScaler
 import torch
@@ -107,7 +108,13 @@ def train(model: torch.nn.Module,
            test_dataloader: torch.utils.data.DataLoader,
            device: torch.device,
            epochs: int,
+           pretrained_epochs: int,
            use_amp: bool = False):
+
+    if use_amp:
+        precision = "fp16"
+    else:
+        precision = "fp32"
 
     results = {"train_loss": [],
                "train_psnr": [],
@@ -129,6 +136,10 @@ def train(model: torch.nn.Module,
         results["train_loss"].append(train_loss)
         results["train_psnr"].append(train_psnr)
         results["train_ssim"].append(train_ssim)
+
+        save_checkpoint(model= model,
+                        optimizer= optimizer,
+                        checkpoint_name= f"FRVSR-CustomDataset-{epoch + 1 + pretrained_epochs}epochs-{precision}.pth")
 
         test_loss, test_psnr, test_ssim = test_step(model= model,
                                                     test_dataloader= test_dataloader,
