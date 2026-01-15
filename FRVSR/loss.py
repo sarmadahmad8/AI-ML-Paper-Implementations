@@ -6,13 +6,14 @@ class FRVSRLoss(nn.Module):
 
     def __init__(self,
                  lr_weight: float = 1.0,
-                 hr_weight: float = 1.0):
+                 hr_weight: float = 1.0,
+                 reduction: str = "mean"):
 
         super().__init__()
 
         self.lr_weight = lr_weight
         self.hr_weight = hr_weight
-        self.l2_loss = nn.MSELoss()
+        self.l2_loss = nn.MSELoss(reduction = reduction)
 
     def forward(self,
                 preds: Tuple[torch.Tensor, torch.Tensor],
