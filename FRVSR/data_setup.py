@@ -15,25 +15,48 @@ class CustomVSRDataset(Dataset):
                  stride: int = 10,
                  img_extension: str = "jpg"):
     
-        self.patch_size = patch_size
         self.seq_length = seq_length
         self.stride = stride
+        self.patch_size = patch_size
+
+        self.video_frames = []
+        self.video_info = []
+        self.patches_per_frame = []
+        self.total_sample_sequences = 0
         
-        self.img_path_list = sorted(list(img_dir.glob(f"*.{img_extension}")))
-        self.sample_size = int(len(self.img_path_list) * sample_size)
-        self.img_path_list = self.img_path_list[: self.sample_size]
-        
-        self.width, self.height = Image.open(self.img_path_list[0]).convert(mode="RGB").size
-        self.vertical_patches = self.height // self.patch_size
-        self.horizontal_patches = self.width // self.patch_size
-        self.patches_per_image = self.vertical_patches * self.horizontal_patches
-        self.num_sequences = (len(self.img_path_list) - self.seq_length) // self.stride + 1
-        self.total_sample_sequences = self.num_sequences * self.patches_per_image
+        for dir_ in img_dir.iterdir():
+            if dir_.is_dir():
+                frames = sorted(list(dir_.glob(f"*.{img_extension}")))
+
+            num_samples = int(len(frames) * sample_size)
+            frames = frames[:num_samples]
+
+            self.video_frames.append(frames)
+
+        for i, _ in enumerate(self.video_frames):
+            first_img = Image.open(self.video_frames[i][0]).convert(mode="RGB")
+            self.width, self.height = first_img.size
+            self.vertical_patches = self.height // self.patch_size
+            self.horizontal_patches = self.width // self.patch_size
+            self.patches_per_frame.append(self.vertical_patches * self.horizontal_patches)
+
+        for i, frames in enumerate(self.video_frames):
+            num_sequences = (len(frames) - self.seq_length) // self.stride + 1
+            video_samples = num_sequences * self.patches_per_frame[i]
+
+            self.video_info.append({
+                "start_idx": self.total_sample_sequences,
+                "num_sequences": num_sequences,
+                "num_frames": len(frames),
+                "samples": video_samples})
+                                   
+
+            self.total_sample_sequences += video_samples
 
     def get_patch_coordinates(self,
                    patch_index: int) -> Tuple[int, int, int, int]:
 
-        row = patch_index // self.horizontal_patches
+        row = patch_index // self.horizontal_patches 
         col = patch_index % self.horizontal_patches
 
         y_start = row * self.patch_size
@@ -72,8 +95,19 @@ class CustomVSRDataset(Dataset):
     def __getitem__(self,
                     index: int):
 
-        sequence_index = index // self.patches_per_image
-        patch_index = index % self.patches_per_image
+        video_idx = 0
+        local_index = index
+
+        for i, info in enumerate(self.video_info):
+            if index < info["start_idx"] + info["samples"]:
+                video_idx = i
+                local_index = index - info["start_idx"]
+                break
+
+        frames = self.video_frames[video_idx]
+
+        sequence_index = local_index // self.patches_per_frame[video_idx]
+        patch_index = local_index % self.patches_per_frame[video_idx]
 
         start_frame = sequence_index * self.stride
 
@@ -83,7 +117,7 @@ class CustomVSRDataset(Dataset):
         for t in range(self.seq_length):
 
             frame_idx = start_frame + t
-            img = Image.open(self.img_path_list[frame_idx]).convert(mode="RGB")
+            img = Image.open(frames[frame_idx]).convert(mode="RGB")
             frame = v2.PILToTensor()(img)
             # print(frame.shape, frame.min(), frame.max(), frame.dtype)
             patch = frame[:, y_start: y_end, x_start: x_end]
