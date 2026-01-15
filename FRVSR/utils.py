@@ -123,17 +123,14 @@ def plot_reconstructed_images(model: torch.nn.Module,
             y = tuple([X, y])
             y_pred = model(X.unsqueeze(dim=0))
     
-            y_pred = ycbcr(y_pred[1]).view(T, C, H, W)
-            y = ycbcr(y[1].unsqueeze(dim=0)).view(T, C, H, W)
-            psnr = peak_signal_noise_ratio(y_pred[:, :1, :, :], y[:, :1, :, :])
-            ssim = structural_similarity_index_measure(y_pred[:, :1, :, :], y[:, :1, :, :])
-
-            y_pred = rgb(y_pred)
-            y = rgb(y)
+            y_pred_c = ycbcr(y_pred[1]).view(T, C, H, W)
+            y_c = ycbcr(y[1].unsqueeze(dim=0)).view(T, C, H, W)
+            psnr = peak_signal_noise_ratio(y_pred_c[:, :1, :, :], y_c[:, :1, :, :])
+            ssim = structural_similarity_index_measure(y_pred_c[:, :1, :, :], y_c[:, :1, :, :])
             
-            y = y.squeeze()
+            y = y[1].squeeze()
             y = y.clamp(min=0.0, max=1.0)
-            y_pred = y_pred.squeeze()
+            y_pred = y_pred[1].squeeze()
             y_pred = y_pred.clamp(min=0.0, max=1.0)
 
             for l in range(10):
