@@ -87,6 +87,8 @@ class SPyNet(nn.Module):
 
         self.spy_net = nn.ModuleList([ConvNet() for _ in range(layers)])
 
+        self.tanh = nn.Tanh()
+
     def _create_identity_grid(self,
                           batch: int,
                           height: int,
@@ -153,8 +155,162 @@ class SPyNet(nn.Module):
             
             residual_flow = self.spy_net[i](concat_input)
             flow = residual_flow + flow
+
+            flow = self.tanh(flow)
             
         return flow
+
+class FNet(nn.Module):
+
+    def __init__(self,
+                in_channels: int):
+
+        super().__init__()
+
+        self.conv_1 = nn.Sequential(nn.Conv2d(in_channels=in_channels,
+                                              out_channels= 32,
+                                              kernel_size=3,
+                                              stride=1,
+                                              padding=1,
+                                              padding_mode="zeros"),
+                                    nn.LeakyReLU(negative_slope=0.2,
+                                                 inplace=False),
+                                    nn.Conv2d(in_channels=32,
+                                              out_channels= 32,
+                                              kernel_size=3,
+                                              stride=1,
+                                              padding=1,
+                                              padding_mode="zeros"),
+                                    nn.LeakyReLU(negative_slope=0.2,
+                                                 inplace=False)
+                                   )
+
+        self.conv_2 = nn.Sequential(nn.Conv2d(in_channels=32,
+                                              out_channels= 64,
+                                              kernel_size=3,
+                                              stride=1,
+                                              padding=1,
+                                              padding_mode="zeros"),
+                                    nn.LeakyReLU(negative_slope=0.2,
+                                                 inplace=False),
+                                    nn.Conv2d(in_channels=64,
+                                              out_channels= 64,
+                                              kernel_size=3,
+                                              stride=1,
+                                              padding=1,
+                                              padding_mode="zeros"),
+                                    nn.LeakyReLU(negative_slope=0.2,
+                                                 inplace=False)
+                                   )
+
+        self.conv_3 = nn.Sequential(nn.Conv2d(in_channels=64,
+                                              out_channels= 128,
+                                              kernel_size=3,
+                                              stride=1,
+                                              padding=1,
+                                              padding_mode="zeros"),
+                                    nn.LeakyReLU(negative_slope=0.2,
+                                                 inplace=False),
+                                    nn.Conv2d(in_channels=128,
+                                              out_channels= 128,
+                                              kernel_size=3,
+                                              stride=1,
+                                              padding=1,
+                                              padding_mode="zeros"),
+                                    nn.LeakyReLU(negative_slope=0.2,
+                                                 inplace=False)
+                                   )
+
+        self.conv_4 = nn.Sequential(nn.Conv2d(in_channels=128,
+                                              out_channels= 256,
+                                              kernel_size=3,
+                                              stride=1,
+                                              padding=1,
+                                              padding_mode="zeros"),
+                                    nn.LeakyReLU(negative_slope=0.2,
+                                                 inplace=False),
+                                    nn.Conv2d(in_channels=256,
+                                              out_channels= 256,
+                                              kernel_size=3,
+                                              stride=1,
+                                              padding=1,
+                                              padding_mode="zeros"),
+                                    nn.LeakyReLU(negative_slope=0.2,
+                                                 inplace=False)
+                                   )
+
+        self.conv_5 = nn.Sequential(nn.Conv2d(in_channels=256,
+                                              out_channels=128,
+                                              kernel_size=3,
+                                              stride=1,
+                                              padding=1,
+                                              padding_mode="zeros"),
+                                    nn.LeakyReLU(negative_slope=0.2,
+                                                 inplace=False),
+                                    nn.Conv2d(in_channels=128,
+                                              out_channels= 128,
+                                              kernel_size=3,
+                                              stride=1,
+                                              padding=1,
+                                              padding_mode="zeros"),
+                                    nn.LeakyReLU(negative_slope=0.2,
+                                                 inplace=False)
+                                   )
+
+        self.conv_6 = nn.Sequential(nn.Conv2d(in_channels=128,
+                                              out_channels=64,
+                                              kernel_size=3,
+                                              stride=1,
+                                              padding=1,
+                                              padding_mode="zeros"),
+                                    nn.LeakyReLU(negative_slope=0.2,
+                                                 inplace=False),
+                                    nn.Conv2d(in_channels=64,
+                                              out_channels= 64,
+                                              kernel_size=3,
+                                              stride=1,
+                                              padding=1,
+                                              padding_mode="zeros"),
+                                    nn.LeakyReLU(negative_slope=0.2,
+                                                 inplace=False)
+                                   )
+
+        self.classifier = nn.Sequential(nn.Conv2d(in_channels=64,
+                                              out_channels=32,
+                                              kernel_size=3,
+                                              stride=1,
+                                              padding=1,
+                                              padding_mode="zeros"),
+                                    nn.LeakyReLU(negative_slope=0.2,
+                                                 inplace=False),
+                                    nn.Conv2d(in_channels=32,
+                                              out_channels= 2,
+                                              kernel_size=3,
+                                              stride=1,
+                                              padding=1,
+                                              padding_mode="zeros")
+                                   )
+
+        self.maxpool = nn.MaxPool2d(kernel_size=2)
+
+        self.upsample = nn.Upsample(scale_factor=2,
+                                    mode="bilinear",
+                                    align_corners=True)
+
+        self.tanh = nn.Tanh()
+
+    def forward(self,
+                x: torch.Tensor) -> torch.Tensor:
+
+        x = self.maxpool(self.conv_1(x))
+        x = self.maxpool(self.conv_2(x))
+        x = self.maxpool(self.conv_3(x))
+        x = self.upsample(self.conv_4(x))
+        x = self.upsample(self.conv_5(x))
+        x = self.upsample(self.conv_6(x))
+        x = self.tanh(self.classifier(x))
+
+        return x
 
 class ResidualBlock(nn.Module):
 
@@ -240,12 +396,22 @@ class Upsample(nn.Module):
 class BasicVSR(nn.Module):
 
     def __init__(self,
-                 seq_length: int):
+                 seq_length: int,
+                 flow_estimator: str = "spynet",
+                 coupled_propogation: bool = False):
 
         super().__init__()
         self.seq_length = seq_length
-
-        self.spynet = SPyNet(layers=6)
+        self.coupled_propogation = coupled_propogation
+        
+        if flow_estimator == "fnet":
+            self.flow_estimator = FNet(in_channels=6)
+        elif flow_estimator == "spynet":
+            self.flow_estimator = SPyNet(layers=6)
+        else:
+            print(f"flow estimator can be either 'fnet' or 'spynet'. Defaulting to 'spynet'.")
+            self.flow_estimator = SPyNet(layers=6)
+        
 
         self.forward_branch = nn.ModuleList([ResidualBlock(channels=64) for _ in range(seq_length)])
 
@@ -308,8 +474,8 @@ class BasicVSR(nn.Module):
             f_spynet_input = torch.cat([x_t[:, f_idx], x_t_minus_1], dim=1)
             b_spynet_input = torch.cat([x_t[:, b_idx], x_t_plus_1], dim=1)
 
-            s_f_i = self.spynet(f_spynet_input)
-            s_b_i = self.spynet(b_spynet_input)
+            s_f_i = self.flow_estimator(f_spynet_input)
+            s_b_i = self.flow_estimator(b_spynet_input)
 
             h_bar_f_i = self.warp_features(features=h_f_i_minus_1,
                                            flow= s_f_i)
