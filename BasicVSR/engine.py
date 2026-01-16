@@ -133,9 +133,10 @@ def train(model: torch.nn.Module,
         results["train_psnr"].append(train_psnr)
         results["train_ssim"].append(train_ssim)
 
-        save_checkpoint(model= model,
-                        optimizer= optimizer,
-                        checkpoint_name= f"BasicVSR-CustomDataset-{epoch + 1 + pretrained_epochs}epochs-{precision}.pth")
+        if (epoch + 1) % 10 == 0:
+            save_checkpoint(model= model,
+                            optimizer= optimizer,
+                            checkpoint_name= f"BasicVSR-CustomDataset-{epoch + 1 + pretrained_epochs}epochs-{precision}.pth")
 
         test_loss, test_psnr, test_ssim = test_step(model= model,
                                                     test_dataloader= test_dataloader,
