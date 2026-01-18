@@ -67,7 +67,7 @@ def evaluate_model(model: torch.nn.Module,
                 B, T, C, H, W = y.shape
                 X, y = X.to(device), y.to(device)
                 y_preds = model(X)
-                loss = loss_fn(y_preds, y)
+                loss = loss_fn(y_preds.view(B * T, C, H, W), y.view(B * T, C, H, W))
                 
                 y_preds = ycbcr(y_preds.view(B * T, C, H, W))
                 y = ycbcr(y.view(B * T, C, H, W))
