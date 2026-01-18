@@ -319,6 +319,7 @@ class ResidualBlock(nn.Module):
 
         super().__init__()
         self.channels = channels
+
         self.residual_block_1 = nn.Sequential(nn.Conv2d(in_channels=channels + 3,
                                                       out_channels= channels,
                                                       kernel_size=3,
@@ -379,8 +380,24 @@ class Upsample(nn.Module):
                                                 stride=1,
                                                 padding=1,
                                                 padding_mode="zeros"),
+                                      nn.LeakyReLU(negative_slope=0.1,
+                                                   inplace=False),
+                                      nn.Conv2d(in_channels=64,
+                                                out_channels=64,
+                                                kernel_size=3,
+                                                stride=1,
+                                                padding=1,
+                                                padding_mode="zeros"),
                                       nn.PixelShuffle(upscale_factor=2),
                                       nn.Conv2d(in_channels=16,
+                                                out_channels=64,
+                                                kernel_size=3,
+                                                stride=1,
+                                                padding=1,
+                                                padding_mode="zeros"),
+                                      nn.LeakyReLU(negative_slope=0.1,
+                                                   inplace=False),
+                                      nn.Conv2d(in_channels=64,
                                                 out_channels=12,
                                                 kernel_size=3,
                                                 stride=1,
@@ -397,12 +414,10 @@ class BasicVSR(nn.Module):
 
     def __init__(self,
                  seq_length: int,
-                 flow_estimator: str = "spynet",
-                 coupled_propogation: bool = False):
+                 flow_estimator: str = "spynet"):
 
         super().__init__()
         self.seq_length = seq_length
-        self.coupled_propogation = coupled_propogation
         
         if flow_estimator == "fnet":
             self.flow_estimator = FNet(in_channels=6)
@@ -411,7 +426,6 @@ class BasicVSR(nn.Module):
         else:
             print(f"flow estimator can be either 'fnet' or 'spynet'. Defaulting to 'spynet'.")
             self.flow_estimator = SPyNet(layers=6)
-        
 
         self.forward_branch = nn.ModuleList([ResidualBlock(channels=64) for _ in range(seq_length)])
 
@@ -461,7 +475,7 @@ class BasicVSR(nn.Module):
         h_f_i_list = []
         h_b_i_list = []
         x_tilda_i_list = []
-        
+
         for f_idx, b_idx in enumerate(range(self.seq_length-1, -1, -1)):
             #print(f_idx, b_idx)
             if f_idx == 0 and b_idx == (self.seq_length - 1):
