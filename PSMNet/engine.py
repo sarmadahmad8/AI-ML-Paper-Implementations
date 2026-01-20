@@ -130,7 +130,7 @@ def test_step(model: torch.nn.Module,
 
     return test_l2_loss, test_epe
 
-def train_Kitti(model: torch.nn.Module,
+def train_Stereo(model: torch.nn.Module,
                 train_dataloader: torch.utils.data.DataLoader,
                 test_dataloader: torch.utils.data.DataLoader,
                 loss_fn: torch.nn.Module,
@@ -167,7 +167,7 @@ def train_Kitti(model: torch.nn.Module,
         results["train_epe"].append(train_epe)
 
         if (epoch + 1) % 10 == 0:
-            save_checkpoint(model = psmnet,
+            save_checkpoint(model = model,
                             optimizer = optimizer,
                             checkpoint_name = f"PSMNet-Sintel-{epoch + 1 + 40}epochs-Experiment1.pth")
 
