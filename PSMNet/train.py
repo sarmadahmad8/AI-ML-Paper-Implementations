@@ -3,10 +3,11 @@ import torch.nn as nn
 from torch.optim.lr_scheduler import StepLR
 from model import PSMNet
 from data_setup import create_dataloaders_SintelStereo
+from engine import train_Stereo
 from utils import save_checkpoint, load_checkpoint
 
 EPOCHS = 20
-LR = 5e-4
+LR = 1e-4
 BATCH_SIZE = 2
 HEIGHT, WIDTH = 256, 512
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -26,13 +27,13 @@ optimizer = torch.optim.Adam(params= psmnet.parameters(),
 
 load_checkpoint(model= psmnet,
                 optimizer= optimizer,
-                checkpoint_name= "PSMNet-Sintel-40epochs-Experiment1.pth")
+                checkpoint_name= "PSMNet-Sintel-60epochs-Experiment1.pth")
 
 # scheduler = StepLR(optimizer= optimizer,
 #                    step_size= 61 * 131,
 #                    gamma= 0.1)
 
-results = train_Kitti(model= psmnet,
+results = train_Stereo(model= psmnet,
                        train_dataloader= train_dataloader,
                        test_dataloader= test_dataloader,
                        loss_fn= loss_fn,
