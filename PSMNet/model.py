@@ -524,7 +524,7 @@ class PSMNet(nn.Module):
         
         _3d_1_1 = self.stack3d_1_1(x)
         _3d_1_2 = self.stack3d_1_2(_3d_1_1)
-        _3d_1_3 = self.stack3d_1_3(_3d_1_2) # + _3d_1_1
+        _3d_1_3 = self.stack3d_1_3(_3d_1_2) + _3d_1_1
         _3d_1_4 = self.stack3d_1_4(_3d_1_3) + x
 
         _3d_2_1 = self.stack3d_2_1(x) + _3d_1_3
