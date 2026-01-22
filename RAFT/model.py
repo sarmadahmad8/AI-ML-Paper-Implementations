@@ -38,9 +38,9 @@ class ResidualBlock(nn.Module):
 
         self.downsampler = nn.Conv2d(in_channels=in_channels,
                                     out_channels=intermediate_channels,
-                                    kernel_size=3,
+                                    kernel_size=1,
                                     stride=2,
-                                    padding=1,
+                                    padding=0,
                                     padding_mode="zeros")
 
     def forward(self,
@@ -271,7 +271,7 @@ class BasicMotionEncoder(nn.Module):
                                                  padding_mode="zeros"),
                                        nn.ReLU(inplace=True),
                                        nn.Conv2d(in_channels=256,
-                                                 out_channels=128,
+                                                 out_channels=192,
                                                  kernel_size=3,
                                                  stride=1,
                                                  padding="same",
@@ -293,7 +293,7 @@ class BasicMotionEncoder(nn.Module):
                                                  padding_mode="zeros"),
                                        nn.ReLU(inplace=True))
 
-        self.conv_corr_flow = nn.Sequential(nn.Conv2d(in_channels=128 + 64,
+        self.conv_corr_flow = nn.Sequential(nn.Conv2d(in_channels=192 + 64,
                                                       out_channels=128-2,
                                                       kernel_size=3,
                                                       stride=1,
