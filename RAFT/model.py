@@ -320,7 +320,7 @@ class UpdateBlock(nn.Module):
 
         super().__init__()
 
-        self.motion_encoder = BasicMotionEncoder(in_channels=6 * 81)
+        self.motion_encoder = BasicMotionEncoder(in_channels=4 * 81)
         self.gru = ConvGRUPair(in_channels=384,
                                kernel_size_1=(1, 5),
                                kernel_size_2=(5, 1))
@@ -424,7 +424,7 @@ class RAFT(nn.Module):
         
         fmap_1, fmap_2 = self.feature_extractor(img_1), self.feature_extractor(img_2)
 
-        corr_fn = CorrelationBlock(fmap_1=fmap_1, fmap_2=fmap_2, num_levels=6, radius=4)
+        corr_fn = CorrelationBlock(fmap_1=fmap_1, fmap_2=fmap_2, num_levels=4, radius=4)
 
         context = self.context_net(img_1)
         
