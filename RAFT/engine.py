@@ -190,7 +190,7 @@ def train_Sintel(model: torch.nn.Module,
         if (epoch + 1) % 10 == 0:
             save_checkpoint(model = model,
                             optimizer = optimizer,
-                            checkpoint_name = f"RAFT-Sintel-{epoch + 1 + 20}epochs-Experiment1.pth")
+                            checkpoint_name = f"RAFT-Sintel-{epoch + 1}epochs-Experiment3.pth")
 
         test_l1_loss, test_epe, test_1px, test_3px, test_5px = test_step(model = model,
                                                                          dataloader= test_dataloader,
